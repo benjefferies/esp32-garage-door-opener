@@ -1,0 +1,24 @@
+[project]
+name = "esp32-garage-door-opener"
+version = "0.1.0"
+description = "ESP32 garage door opener project"
+authors = [
+    {name = "Ben Jefferies"}
+]
+readme = "README.md"
+requires-python = "^3.11"
+dependencies = [
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.group.dev.dependencies]
+mpremote = "^1.25.0"
+micropython-esp32-stubs = "^1.25.0.post4"
+

@@ -1,0 +1,18 @@
+{
+    "python.defaultInterpreterPath": "/Users/benjefferies/Library/Caches/pypoetry/virtualenvs/esp32-garage-door-opener-S-Ia08Pd-py3.11/bin/python",
+    "python.analysis.extraPaths": [
+        "/Users/benjefferies/Library/Caches/pypoetry/virtualenvs/esp32-garage-door-opener-S-Ia08Pd-py3.11/lib/python3.11/site-packages",
+        "/Users/benjefferies/Library/Caches/pypoetry/virtualenvs/esp32-garage-door-opener-S-Ia08Pd-py3.11/lib/python3.11/site-packages/micropython_esp32_stubs"
+    ],
+    "python.analysis.typeCheckingMode": "off",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.formatting.provider": "black",
+    "editor.formatOnSave": true,
+    "editor.rulers": [88],
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/*.pyc": true
+    }
+} 
