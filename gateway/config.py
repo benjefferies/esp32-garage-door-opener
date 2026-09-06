@@ -28,3 +28,5 @@ MQTT_TOPIC_CMD = "garage/opener/cmd"
 MQTT_TOPIC_STATE = "garage/opener/state"
 MQTT_TOPIC_ACK = "garage/opener/ack"
 MQTT_TOPIC_STATUS = "garage/opener/gateway"
+MQTT_TOPIC_PAIR_ACK = "garage/opener/pair/ack"
+PAIR_WINDOW_S = 60

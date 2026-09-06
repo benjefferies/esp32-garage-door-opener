@@ -4,19 +4,21 @@ import ssl
 import time
 from umqtt.simple import MQTTClient, MQTTException
 from utils import log
-from protocol import is_toggle_command
+from protocol import is_toggle_command, parse_pair_command
 from config import (
     MQTT_KEEPALIVE_S,
     MQTT_TOPIC_CMD,
     MQTT_TOPIC_STATE,
     MQTT_TOPIC_ACK,
     MQTT_TOPIC_STATUS,
+    MQTT_TOPIC_PAIR_ACK,
 )
 
 
 class GatewayMqtt:
-    def __init__(self, on_toggle):
+    def __init__(self, on_toggle, on_pair=None):
         self.on_toggle = on_toggle
+        self.on_pair = on_pair
         self.client = None
         self._last_ping = time.ticks_ms()
 
@@ -75,7 +77,13 @@ class GatewayMqtt:
 
     def _on_message(self, topic, msg):
         log("MQTT {} {}".format(topic, msg))
-        if topic == MQTT_TOPIC_CMD.encode() and is_toggle_command(msg):
+        if topic != MQTT_TOPIC_CMD.encode():
+            return
+        nonce = parse_pair_command(msg)
+        if nonce and self.on_pair:
+            self.on_pair(nonce)
+            return
+        if is_toggle_command(msg):
             self.on_toggle()
 
     def check(self) -> None:
@@ -97,6 +105,9 @@ class GatewayMqtt:
 
     def publish_ack(self, msg_id) -> None:
         self._publish(MQTT_TOPIC_ACK, ("ack:%s" % msg_id).encode())
+
+    def publish_pair_ack(self, nonce) -> None:
+        self._publish(MQTT_TOPIC_PAIR_ACK, nonce.encode())
 
     def _publish(self, topic, msg, retain=False) -> None:
         if not self.client:

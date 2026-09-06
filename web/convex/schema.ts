@@ -22,4 +22,24 @@ export default defineSchema({
     error: v.optional(v.string()),
     requestedAt: v.number(),
   }).index("by_requestedAt", ["requestedAt"]),
+  owners: defineTable({
+    tokenIdentifier: v.string(),
+    email: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_token", ["tokenIdentifier"]),
+  pairings: defineTable({
+    nonce: v.string(),
+    tokenIdentifier: v.string(),
+    email: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("confirmed"),
+      v.literal("expired"),
+    ),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_nonce", ["nonce"])
+    .index("by_status", ["status"])
+    .index("by_token", ["tokenIdentifier"]),
 });

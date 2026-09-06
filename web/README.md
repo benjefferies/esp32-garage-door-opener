@@ -59,6 +59,6 @@ Set these on the Convex deployment (**Environment Variables**), not Wi‑Fi:
 | `SITE_URL` | `http://localhost:5173` while developing |
 | `DOOR_WEBHOOK_SECRET` | optional; for later `POST /door-state` from the gateway |
 
-Create the first account with **Need an account?** on the sign-in screen.
+Sign-up is **restricted** in Clerk. After you sign in, the site asks you to press **SW1** on the gateway. That pairing is what adds your Clerk user as an owner; `toggleDoor` rejects everyone else.
 
 Door open/closed stays `unknown` until the gateway reports reed state. The button still sends MQTT.

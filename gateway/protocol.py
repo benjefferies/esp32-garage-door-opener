@@ -31,3 +31,12 @@ def parse_state(msg):
 def is_toggle_command(msg):
     text = msg.strip().lower()
     return text in (b"toggle", b"1", b"open", b"close") or text.startswith(b"toggle:")
+
+
+def parse_pair_command(msg):
+    """Parse b'pair:<nonce>' from MQTT cmd."""
+    text = msg.strip()
+    if not text.lower().startswith(b"pair:"):
+        return None
+    nonce = text.split(b":", 1)[1].decode().strip()
+    return nonce or None

@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gateway"))
 
-from protocol import parse_ack, parse_state, is_toggle_command
+from protocol import parse_ack, parse_state, is_toggle_command, parse_pair_command
 
 
 class ParseAckTests(unittest.TestCase):
@@ -57,6 +57,21 @@ class ToggleCommandTests(unittest.TestCase):
         self.assertTrue(is_toggle_command(b"toggle:9"))
         self.assertTrue(is_toggle_command(b"OPEN"))
         self.assertFalse(is_toggle_command(b"status"))
+        self.assertFalse(is_toggle_command(b"pair:abc"))
+
+
+class PairCommandTests(unittest.TestCase):
+    def test_parses_nonce(self):
+        # given a pairing command
+        # when it is parsed
+        # then the nonce is returned
+        self.assertEqual(parse_pair_command(b"pair:deadbeef"), "deadbeef")
+
+    def test_rejects_toggle(self):
+        # given a toggle payload
+        # when it is parsed as a pair command
+        # then it is ignored
+        self.assertIsNone(parse_pair_command(b"toggle"))
 
 
 if __name__ == "__main__":
