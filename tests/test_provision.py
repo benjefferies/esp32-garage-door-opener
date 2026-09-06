@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gateway"))
 
+from button_handler import held_long_enough
 from provision import parse_form_body, url_unquote
 from wifi_store import clear_wifi, load_wifi, save_wifi
 
@@ -25,6 +26,15 @@ class FormParseTests(unittest.TestCase):
         fields = parse_form_body(b"ssid=home-net&password=s3cret")
         self.assertEqual(fields["ssid"], "home-net")
         self.assertEqual(fields["password"], "s3cret")
+
+
+class HoldResetTests(unittest.TestCase):
+    def test_three_seconds_is_a_reset(self):
+        # given a 3s hold threshold
+        # when SW1 is held
+        # then only presses at or past 3s count as reset
+        self.assertFalse(held_long_enough(2999, threshold_s=3))
+        self.assertTrue(held_long_enough(3000, threshold_s=3))
 
 
 class WifiStoreTests(unittest.TestCase):

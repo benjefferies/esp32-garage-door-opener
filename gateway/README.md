@@ -16,7 +16,7 @@ If STA join fails (or nothing is saved), the gateway starts a local AP:
 3. Enter the home SSID and password
 4. The board writes `wifi.json` and tries STA again
 
-Hold **SW1** for 3 seconds during `Initializing WiFi...` to forget `wifi.json` and reopen the setup AP.
+Hold **SW1** for more than 3 seconds at any time to forget `wifi.json` and reboot into the setup AP. The same hold during `Initializing WiFi...` also clears credentials before the first STA attempt.
 
 After `sta.connect()`, the radio uses the **home AP channel**. Set opener `WIFI_CHANNEL` to that number or the door radio will miss packets.
 

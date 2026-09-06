@@ -21,6 +21,16 @@ from wifi_store import clear_wifi, load_credentials, save_wifi
 from provision import run_portal
 
 
+def reset_wifi() -> None:
+    """Forget saved STA credentials and reboot into the setup AP."""
+    clear_wifi()
+    log("Wi-Fi reset — rebooting into setup AP")
+    time.sleep_ms(200)
+    from machine import reset
+
+    reset()
+
+
 def _clear_wifi_if_button_held() -> None:
     from machine import Pin
 

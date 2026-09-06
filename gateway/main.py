@@ -10,6 +10,7 @@ from network_manager import (
     initialize_espnow,
     send_toggle_with_ack,
     poll_espnow,
+    reset_wifi,
 )
 from button_handler import ButtonHandler
 from mqtt_client import GatewayMqtt
@@ -59,8 +60,8 @@ def main() -> None:
     else:
         log("Skipping MQTT (no WiFi)")
 
-    button_handler = ButtonHandler(on_press=on_button)
-    log("Gateway ready. SW1 or publish toggle to garage/opener/cmd")
+    button_handler = ButtonHandler(on_press=on_button, on_long_press=reset_wifi)
+    log("Gateway ready. SW1 toggles, hold 3s resets Wi-Fi")
 
     while True:
         button_handler.handle_button()
