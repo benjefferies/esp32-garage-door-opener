@@ -7,8 +7,9 @@ WIFI_CHANNEL = 6
 BROADCAST_ADDRESS = b'\xff\xff\xff\xff\xff\xff'
 
 # Hardware settings
-MOSFET_PIN = 5  # GPIO pin for LED
-GARAGE_DOOR_PULSE_MS = 500  # Duration of MOSFET pulse in milliseconds
+# OC1 pin 1 (anode) is GPIO7; cathode to GND (drive high to close the door contacts)
+OCTOCUPLER_PIN = 7
+GARAGE_DOOR_PULSE_MS = 2000  # Duration of pulse in milliseconds
 
 # Timing settings
 LISTEN_TIME_MS = 250

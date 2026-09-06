@@ -18,6 +18,7 @@ class ESPNowManager:
             print("Initializing WiFi...")
         sta = network.WLAN(network.STA_IF)
         sta.active(True)
+        sta.disconnect()
         sta.config(channel=WIFI_CHANNEL)
         if is_cold_boot:
             print(f"WiFi initialized on channel {WIFI_CHANNEL}")
@@ -66,6 +67,7 @@ class ESPNowManager:
                 print(f"Added peer {sender_mac} for ACK")
                 self.known_peers.add(sender_mac)
             except OSError as e:
+                print(f"Error adding peer {sender_mac} for ACK: {e}")
                 if e.args[0] == -12395:
                     self.known_peers.add(sender_mac)
                 else:

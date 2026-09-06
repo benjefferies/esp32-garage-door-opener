@@ -19,4 +19,13 @@ BURST_COUNT = 20
 BURST_INTERVAL_MS = 50
 
 # ACK wait parameters
-ACK_TIMEOUT_MS = 500 
+# Long timeout to account for opener's sleep cycle and async nature
+ACK_TIMEOUT_MS = 10000  # 10 seconds
+
+# Retry parameters
+MAX_RETRIES = 3  # Maximum number of retries before giving up
+RETRY_DELAY_MS = 1000  # Delay before retrying (1 second)
+
+# How long to keep pending ACKs (in milliseconds)
+# ACKs for messages within this window will be accepted even if we've moved on
+PENDING_ACK_WINDOW_MS = 15000  # 15 seconds to match retry window 

@@ -1,11 +1,12 @@
 """
-ESP32-NOW Gateway for Garage Door Control (optimized burst send + ACK, fixed MAC logging)
+ESP32-NOW Gateway for Garage Door Control (async messaging with retries)
 """
 
 import time
 from utils import log
-from config import BOOT_DELAY
+from config import BOOT_DELAY, LOOP_DELAY
 from network_manager import initialize_wifi, initialize_espnow
+from message_manager import MessageManager
 from button_handler import ButtonHandler
 
 def main() -> None:
@@ -19,10 +20,18 @@ def main() -> None:
     
     log("ESP-NOW sender ready. Press the button to toggle the garage door.")
     
-    button_handler = ButtonHandler(espnow_instance)
+    # Create message manager for async messaging
+    message_manager = MessageManager(espnow_instance)
+    button_handler = ButtonHandler(message_manager)
     
     while True:
+        # Handle button (non-blocking)
         button_handler.handle_button()
+        
+        # Update message manager (processes ACKs, retries, cleanup)
+        message_manager.update()
+        
+        time.sleep(LOOP_DELAY)
 
 if __name__ == "__main__":
     main()

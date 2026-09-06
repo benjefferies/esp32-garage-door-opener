@@ -8,7 +8,7 @@ class MessageHandler:
     def __init__(self):
         self.recent_message_ids = []
     
-    def handle_message(self, msg, led_controller, espnow_manager, sender_mac):
+    def handle_message(self, msg, switch, espnow_manager, sender_mac):
         if not msg.startswith(b'toggle:'):
             return False
             
@@ -19,8 +19,8 @@ class MessageHandler:
             return False
             
         print(f"Processing new toggle! Message ID {msg_id}")
-        led_controller.toggle()
-        print(f"LED state changed to: {'ON' if led_controller.get_state() else 'OFF'}")
+        switch.toggle()
+        print(f"Switch state changed to: {'ON' if switch.get_state() else 'OFF'}")
         
         # Add message ID to recent list
         self.recent_message_ids.append(msg_id)
