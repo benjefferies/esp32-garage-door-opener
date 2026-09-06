@@ -4,7 +4,7 @@ ESP32-NOW Gateway: local button + HiveMQ commands to the opener.
 
 import time
 from utils import log
-from config import BOOT_DELAY, LOOP_DELAY
+from config import BOOT_DELAY, LOOP_DELAY, PAIR_WINDOW_S
 from network_manager import (
     initialize_wifi,
     initialize_espnow,
@@ -13,6 +13,7 @@ from network_manager import (
 )
 from button_handler import ButtonHandler
 from mqtt_client import GatewayMqtt
+from pair_webhook import post_pair_confirmation
 
 
 def main() -> None:
@@ -23,18 +24,42 @@ def main() -> None:
     mac = sta.config("mac")
     log("Gateway MAC address: " + ":".join("%02x" % b for b in mac))
 
-    state = {"message_id": 0, "pending_toggle": False}
+    state = {
+        "message_id": 0,
+        "pending_toggle": False,
+        "pair_nonce": None,
+        "pair_deadline": 0,
+    }
 
     def request_toggle(source="button"):
         state["pending_toggle"] = source
 
-    mqtt = GatewayMqtt(on_toggle=lambda: request_toggle("mqtt"))
+    def start_pair(nonce):
+        state["pair_nonce"] = nonce
+        state["pair_deadline"] = time.time() + PAIR_WINDOW_S
+        log("Pairing window open — press SW1")
+
+    def on_button():
+        nonce = state["pair_nonce"]
+        if nonce and time.time() < state["pair_deadline"]:
+            state["pair_nonce"] = None
+            log("SW1 pairing confirm")
+            mqtt.publish_pair_ack(nonce)
+            if post_pair_confirmation(nonce):
+                log("Pair webhook ok")
+            return
+        request_toggle("button")
+
+    mqtt = GatewayMqtt(
+        on_toggle=lambda: request_toggle("mqtt"),
+        on_pair=start_pair,
+    )
     if sta.isconnected():
         mqtt.connect()
     else:
         log("Skipping MQTT (no WiFi)")
 
-    button_handler = ButtonHandler(on_press=lambda: request_toggle("button"))
+    button_handler = ButtonHandler(on_press=on_button)
     log("Gateway ready. SW1 or publish toggle to garage/opener/cmd")
 
     while True:
