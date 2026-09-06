@@ -16,7 +16,7 @@ type Props = {
 };
 
 export function SetupPage({ pairing, onCancel }: Props) {
-  const { status, online, onGateway } = useNetworkProbe(pairing?.nonce);
+  const { status, online, onGateway, probe } = useNetworkProbe(pairing?.nonce);
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -120,6 +120,18 @@ export function SetupPage({ pairing, onCancel }: Props) {
           <p className="error">Go back and tap Start pairing again.</p>
         )}
         {error ? <p className="error">{error}</p> : null}
+        {probe ? (
+          <p className="probe">
+            Ping {GATEWAY_ORIGIN}/api/status —{" "}
+            {probe.ok
+              ? `ok in ${probe.ms}ms (sw1 ${probe.status?.sw1 ? "yes" : "no"})`
+              : `${probe.error ?? "failed"} in ${probe.ms}ms`}
+            {probe.detail ? ` · ${probe.detail}` : ""}
+            {` · page ${window.location.protocol}//${window.location.host}`}
+          </p>
+        ) : (
+          <p className="probe">Pinging {GATEWAY_ORIGIN}/api/status…</p>
+        )}
         {saved ? (
           <button type="button" className="primary" onClick={onCancel} disabled={!backOnline}>
             {backOnline ? "Continue" : "Waiting for internet…"}

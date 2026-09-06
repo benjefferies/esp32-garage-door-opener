@@ -10,6 +10,16 @@ export type GatewayStatus = {
   reason?: string;
 };
 
+export type GatewayProbe = {
+  status: GatewayStatus | null;
+  ok: boolean;
+  ms: number;
+  error?: string;
+  detail?: string;
+};
+
+const GATEWAY_PING_MS = 2000;
+
 export async function fetchInternetReachable(): Promise<boolean> {
   const url = new URL("/manifest.webmanifest", window.location.origin);
   url.searchParams.set("online", String(Date.now()));
@@ -21,23 +31,62 @@ export async function fetchInternetReachable(): Promise<boolean> {
   }
 }
 
-export async function fetchGatewayStatus(nonce?: string | null): Promise<GatewayStatus | null> {
+export async function probeGateway(nonce?: string | null): Promise<GatewayProbe> {
+  const started = Date.now();
+  const url = new URL("/api/status", GATEWAY_ORIGIN);
+  if (nonce) {
+    url.searchParams.set("n", nonce);
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GATEWAY_PING_MS);
   try {
-    const url = new URL("/api/status", GATEWAY_ORIGIN);
-    if (nonce) {
-      url.searchParams.set("n", nonce);
-    }
     const response = await fetch(url, {
       mode: "cors",
       cache: "no-store",
+      signal: controller.signal,
     });
     if (!response.ok) {
-      return null;
+      return {
+        status: null,
+        ok: false,
+        ms: Date.now() - started,
+        error: `HTTP ${response.status}`,
+        detail: response.statusText || "Gateway rejected the ping",
+      };
     }
-    return (await response.json()) as GatewayStatus;
-  } catch {
-    return null;
+    const status = (await response.json()) as GatewayStatus;
+    return { status, ok: true, ms: Date.now() - started };
+  } catch (err) {
+    const ms = Date.now() - started;
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return {
+        status: null,
+        ok: false,
+        ms,
+        error: "timeout",
+        detail: `No answer in ${GATEWAY_PING_MS}ms. Not on garage-gw, or the board is down.`,
+      };
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    const pageHttps = window.location.protocol === "https:";
+    if (pageHttps) {
+      return {
+        status: null,
+        ok: false,
+        ms,
+        error: "blocked",
+        detail: `This HTTPS page cannot fetch ${GATEWAY_ORIGIN} (${message}). Opening that URL in the address bar works; the app fetch does not.`,
+      };
+    }
+    return { status: null, ok: false, ms, error: "failed", detail: message };
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+export async function fetchGatewayStatus(nonce?: string | null): Promise<GatewayStatus | null> {
+  const probe = await probeGateway(nonce);
+  return probe.status;
 }
 
 export async function postGatewayWifi(input: {

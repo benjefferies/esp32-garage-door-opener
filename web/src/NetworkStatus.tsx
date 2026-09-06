@@ -1,24 +1,27 @@
 import { useEffect, useState } from "react";
 import {
   GATEWAY_AP_SSID,
-  fetchGatewayStatus,
   fetchInternetReachable,
+  probeGateway,
+  type GatewayProbe,
   type GatewayStatus,
 } from "./gatewayApi";
 
 export function useNetworkProbe(nonce?: string | null) {
   const [status, setStatus] = useState<GatewayStatus | null>(null);
   const [online, setOnline] = useState<boolean | null>(null);
+  const [probe, setProbe] = useState<GatewayProbe | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
-      const [nextStatus, nextOnline] = await Promise.all([
-        fetchGatewayStatus(nonce),
+      const [nextProbe, nextOnline] = await Promise.all([
+        probeGateway(nonce),
         fetchInternetReachable(),
       ]);
       if (!cancelled) {
-        setStatus(nextStatus);
+        setProbe(nextProbe);
+        setStatus(nextProbe.status);
         setOnline(nextOnline);
       }
     };
@@ -39,7 +42,7 @@ export function useNetworkProbe(nonce?: string | null) {
     };
   }, [nonce]);
 
-  return { status, online, onGateway: status !== null };
+  return { status, online, onGateway: status !== null, probe };
 }
 
 export function NetworkPills({
