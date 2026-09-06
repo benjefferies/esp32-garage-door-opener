@@ -1,0 +1,11 @@
+secrets.py
+__pycache__/
+*.pyc
+.venv/
+firmware/*.bin
+.mypy_cache/
+web/node_modules/
+web/dist/
+web/.env.local
+web/.env.local.site
+.convex/

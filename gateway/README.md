@@ -1,27 +1,53 @@
 # ESP32 Garage Door Opener Gateway
 
-This is the sender/gateway implementation for the ESP32 garage door opener system. It uses ESP-NOW to send commands to the garage door opener receiver.
+Sends ESP-NOW toggles to the opener from **SW1** or from **HiveMQ Cloud** (`garage/opener/cmd`).
 
-## Hardware Requirements
+## Hardware
 
-- ESP32 development board (any model)
-- The built-in BOOT button (GPIO 0) is used as the trigger
+- Custom C3 board, LiPo seated
+- **SW1** (GPIO 9 / BOOT) is the local trigger
 
-## Setup
+## Secrets
 
-1. Flash this code to your ESP32 gateway device
-2. Make sure the receiver (opener) is powered on and running its code
-3. Press the BOOT button to send a toggle command to the garage door opener
+Copy [`secrets.py.example`](secrets.py.example) to `secrets.py` on the device (already gitignored).
 
-## How it Works
+```python
+WIFI_SSID = "your-wifi-ssid"
+WIFI_PASSWORD = "your-wifi-password"
+MQTT_HOST = "6976bf6995e243d6be6c1f3634bb4f10.s1.eu.hivemq.cloud"
+MQTT_PORT = 8883
+MQTT_USER = "gateway"
+MQTT_PASSWORD = "CHANGE_ME"
+MQTT_CLIENT_ID = "garage-gateway"
+```
 
-- The gateway uses ESP-NOW to send broadcast messages
-- When the button is pressed, it sends a 'toggle' command
-- The receiver will receive this command and toggle the garage door state
+After `sta.connect()`, the radio uses the **home AP channel**. Set opener `WIFI_CHANNEL` to that number or the door radio will miss packets.
 
-## Troubleshooting
+## MQTT topics
 
-- If the garage door doesn't respond, check that both devices are powered on
-- Make sure both devices are within range of each other
-- Verify that the receiver's code is running correctly
-- Check the serial monitor for any error messages 
+| Topic | Direction | Payload |
+|---|---|---|
+| `garage/opener/cmd` | HiveMQ → gateway | `toggle` |
+| `garage/opener/state` | gateway → HiveMQ (retained) | `open` / `closed` |
+| `garage/opener/ack` | gateway → HiveMQ | `ack:<id>` |
+| `garage/opener/gateway` | last will | `online` / `offline` |
+
+Test from the HiveMQ console: publish `toggle` to `garage/opener/cmd`.
+
+## Flash
+
+Keep the LiPo on. Gateway is `08:92:72:ce:db:a8`.
+
+```bash
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART cp gateway/secrets.py :secrets.py
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART cp gateway/config.py :config.py
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART cp gateway/protocol.py :protocol.py
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART cp gateway/utils.py :utils.py
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART cp gateway/network_manager.py :network_manager.py
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART cp gateway/mqtt_client.py :mqtt_client.py
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART cp gateway/button_handler.py :button_handler.py
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART cp gateway/main.py :main.py
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART mkdir :umqtt
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART cp gateway/umqtt/__init__.py :umqtt/__init__.py
+poetry run mpremote connect /dev/cu.SLAB_USBtoUART cp gateway/umqtt/simple.py :umqtt/simple.py
+```

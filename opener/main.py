@@ -1,5 +1,5 @@
 """
-ESP32-NOW Garage Door Opener Receiver (optimized ACK + recent message suppression)
+ESP32-NOW Garage Door Opener Receiver
 """
 
 import time
@@ -9,6 +9,8 @@ from settings import LISTEN_TIME_MS, SLEEP_TIME_MS
 from switch import SwitchController
 from espnow_manager import ESPNowManager
 from message_handler import MessageHandler
+from reed import ReedSensor
+
 
 def main():
     is_cold_boot = reset_cause() != DEEPSLEEP_RESET
@@ -18,26 +20,38 @@ def main():
     else:
         print("Woke from sleep")
 
-    # Initialize components
     switch = SwitchController(is_cold_boot)
     espnow_manager = ESPNowManager(is_cold_boot)
     message_handler = MessageHandler()
+    reed = ReedSensor()
 
-    # Listen for LISTEN_TIME_MS ms
+    changed = reed.take_if_changed()
+    if changed:
+        print("Reed {}".format(changed))
+        espnow_manager.send_state(changed)
+
     t_start = time.ticks_ms()
     message_received = False
 
     while time.ticks_diff(time.ticks_ms(), t_start) < LISTEN_TIME_MS:
         host, msg = espnow_manager.receive_message(timeout_ms=50)
         if msg and host:
-            print(f"Message received from {host}")
-            message_received = message_handler.handle_message(msg, switch, espnow_manager, host)
+            print("Message received from {}".format(host))
+            message_received = message_handler.handle_message(
+                msg, switch, espnow_manager, host, reed.read_name()
+            )
             if message_received:
-                break  # Optional — could listen full window if desired
+                break
 
-    print(f"{'Message processed,' if message_received else 'No message,'} sleeping for {SLEEP_TIME_MS} ms...")
-    switch.cleanup()  # Ensure switch is off before sleeping
+    print(
+        "{} sleeping for {} ms...".format(
+            "Message processed," if message_received else "No message,",
+            SLEEP_TIME_MS,
+        )
+    )
+    switch.cleanup()
     deepsleep(SLEEP_TIME_MS)
+
 
 if __name__ == "__main__":
     main()
