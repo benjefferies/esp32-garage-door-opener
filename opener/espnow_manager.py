@@ -20,6 +20,10 @@ class ESPNowManager:
         sta = network.WLAN(network.STA_IF)
         sta.active(True)
         sta.disconnect()
+        try:
+            sta.config(pm=getattr(network.WLAN, "PM_NONE", 0))
+        except (OSError, ValueError, AttributeError):
+            pass
         sta.config(channel=WIFI_CHANNEL)
         if is_cold_boot:
             print("WiFi initialized on channel {}".format(WIFI_CHANNEL))
