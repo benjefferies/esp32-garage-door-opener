@@ -97,11 +97,9 @@ export const runPairing = internalAction({
 
       if (matched) {
         await ctx.runMutation(internal.door.confirmPairing, { nonce: args.nonce });
-      } else {
-        await ctx.runMutation(internal.door.expirePairing, { pairingId: args.pairingId });
       }
     } catch {
-      await ctx.runMutation(internal.door.expirePairing, { pairingId: args.pairingId });
+      // SoftAP pairing still uses this nonce after the phone leaves the internet.
     } finally {
       if (client) {
         await client.endAsync();

@@ -15,11 +15,20 @@ from network_manager import (
 from button_handler import ButtonHandler
 from mqtt_client import GatewayMqtt
 from pair_webhook import post_pair_confirmation
+from wifi_store import clear_pair_nonce
+
+
+def _confirm_pairing(mqtt, nonce) -> None:
+    log("Confirming SoftAP pairing")
+    mqtt.publish_pair_ack(nonce)
+    if post_pair_confirmation(nonce):
+        log("Pair webhook ok")
+    clear_pair_nonce()
 
 
 def main() -> None:
     time.sleep(BOOT_DELAY)
-    sta = initialize_wifi()
+    sta, boot_pair_nonce = initialize_wifi()
     espnow_instance = initialize_espnow()
 
     mac = sta.config("mac")
@@ -57,6 +66,8 @@ def main() -> None:
     )
     if sta.isconnected():
         mqtt.connect()
+        if boot_pair_nonce:
+            _confirm_pairing(mqtt, boot_pair_nonce)
     else:
         log("Skipping MQTT (no WiFi)")
 

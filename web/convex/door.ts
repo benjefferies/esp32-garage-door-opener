@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 
 const DOOR_SLUG = "opener";
-const PAIR_WINDOW_MS = 60_000;
+const PAIR_WINDOW_MS = 15 * 60_000;
 
 type Identity = {
   tokenIdentifier: string;
@@ -37,7 +37,7 @@ export const getStatus = query({
       .first();
     const pairing =
       pending && pending.status === "pending" && pending.expiresAt > Date.now()
-        ? { expiresAt: pending.expiresAt }
+        ? { expiresAt: pending.expiresAt, nonce: pending.nonce }
         : null;
 
     if (!owner) {
@@ -91,11 +91,14 @@ export const requestPairing = mutation({
       expiresAt: now + PAIR_WINDOW_MS,
       createdAt: now,
     });
+    await ctx.scheduler.runAfter(PAIR_WINDOW_MS, internal.door.expirePairing, {
+      pairingId,
+    });
     await ctx.scheduler.runAfter(0, internal.mqtt.runPairing, {
       pairingId,
       nonce,
     });
-    return { expiresAt: now + PAIR_WINDOW_MS };
+    return { nonce, expiresAt: now + PAIR_WINDOW_MS };
   },
 });
 

@@ -1,8 +1,21 @@
-"""SoftAP + tiny HTTP form for first-time / failed Wi-Fi setup."""
+"""SoftAP + tiny HTTP API for first-time / failed Wi-Fi setup."""
 
 import socket
+
+try:
+    import ujson as json
+except ImportError:
+    import json
+
 from utils import log
 from config import AP_SSID, AP_PASSWORD, AP_IP
+
+CORS = (
+    "Access-Control-Allow-Origin: *\r\n"
+    "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+    "Access-Control-Allow-Headers: Content-Type\r\n"
+    "Access-Control-Allow-Private-Network: true\r\n"
+)
 
 FORM_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -15,20 +28,44 @@ button{margin-top:1rem;padding:.8rem 1rem;width:100%}
 .note{color:#9aa6b2;font-size:.9rem}
 </style>
 <p class="note">%s</p>
-<form method="post">
+<form method="post" action="/api/wifi">
+<input type="hidden" name="n" value="%s">
 <label>SSID</label>
 <input name="ssid" autocomplete="off" autocapitalize="none">
 <label>Password</label>
 <input name="password" type="password">
 <button>Save and connect</button>
 </form>
-<p class="note">Join Wi-Fi <strong>%s</strong>, then open <strong>http://%s</strong>.</p>
+<p class="note">Prefer the Garage web app on this setup network. Join <strong>%s</strong>, then open the app tab.</p>
+"""
+
+WAIT_PAGE = """<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="1">
+<title>Garage WiFi</title>
+<style>
+body{font-family:sans-serif;background:#12161c;color:#e8edf2;margin:1.5rem}
+.note{color:#9aa6b2}
+</style>
+<p>Press <strong>SW1</strong> on the gateway, then return to the Garage app tab.</p>
+<p class="note">This page is only a fallback if the app cannot reach http://%s.</p>
 """
 
 SAVED_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Garage WiFi</title>
-<p>Saved. The gateway will leave this setup network and join your Wi-Fi.</p>
+<style>
+body{font-family:sans-serif;background:#12161c;color:#e8edf2;margin:1.5rem}
+.note{color:#9aa6b2}
+</style>
+<p>Saved. Rejoin home Wi-Fi or cellular, then open the Garage app. Pairing finishes when this gateway is online.</p>
+<p class="note">The setup network will turn off in a moment.</p>
+"""
+
+NEED_SW1_PAGE = """<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Garage WiFi</title>
+<p>Press SW1 on the gateway, then submit again.</p>
 """
 
 
@@ -63,13 +100,49 @@ def parse_form_body(body):
     return fields
 
 
-def _http_response(body, status="200 OK"):
+def parse_request_target(request_line):
+    if not request_line:
+        return "GET", "/", {}
+    parts = request_line.split(" ")
+    method = parts[0] if parts else "GET"
+    raw = parts[1] if len(parts) > 1 else "/"
+    if "?" in raw:
+        path, query = raw.split("?", 1)
+        return method, path, parse_form_body(query)
+    return method, raw, {}
+
+
+def parse_body(body, content_type=""):
+    if not body:
+        return {}
+    text = body.decode() if isinstance(body, bytes) else body
+    if "json" in (content_type or ""):
+        try:
+            data = json.loads(text)
+        except ValueError:
+            return {}
+        return data if isinstance(data, dict) else {}
+    return parse_form_body(text)
+
+
+def wifi_fields(fields):
+    ssid = (fields.get("ssid") or "").strip()
+    password = fields.get("password") or ""
+    nonce = (fields.get("nonce") or fields.get("n") or "").strip()
+    return ssid, password, nonce or None
+
+
+def _http_response(body, status="200 OK", content_type="text/html; charset=utf-8"):
     payload = body if isinstance(body, bytes) else body.encode()
-    header = "HTTP/1.0 %s\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" % (
-        status,
-        len(payload),
+    header = (
+        "HTTP/1.0 %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nConnection: close\r\n%s\r\n"
+        % (status, content_type, len(payload), CORS)
     )
     return header.encode() + payload
+
+
+def _json_response(data, status="200 OK"):
+    return _http_response(json.dumps(data), status=status, content_type="application/json")
 
 
 def _recv_request(conn):
@@ -81,7 +154,7 @@ def _recv_request(conn):
             break
         data += chunk
     if b"\r\n\r\n" not in data:
-        return "", b""
+        return "", {}, b""
     head, rest = data.split(b"\r\n\r\n", 1)
     lines = head.split(b"\r\n")
     request_line = lines[0].decode() if lines else ""
@@ -89,14 +162,17 @@ def _recv_request(conn):
     for line in lines[1:]:
         if b":" in line:
             key, value = line.split(b":", 1)
-            headers[key.decode().lower()] = value.strip()
-    length = int(headers.get("content-length", b"0") or b"0")
+            headers[key.decode().lower()] = value.strip().decode()
+    try:
+        length = int(headers.get("content-length", "0") or "0")
+    except ValueError:
+        length = 0
     while len(rest) < length:
         chunk = conn.recv(256)
         if not chunk:
             break
         rest += chunk
-    return request_line, rest[:length]
+    return request_line, headers, rest[:length]
 
 
 def _dns_response(query, ip_bytes):
@@ -117,6 +193,16 @@ def _dns_response(query, ip_bytes):
 
 def _ip_bytes(ip):
     return bytes(int(part) for part in ip.split("."))
+
+
+def _button_down():
+    try:
+        from machine import Pin
+        from config import BUTTON_PIN
+
+        return Pin(BUTTON_PIN, Pin.IN, Pin.PULL_UP).value() == 0
+    except ImportError:
+        return False
 
 
 def run_portal(reason="Set the home Wi-Fi"):
@@ -140,7 +226,7 @@ def run_portal(reason="Set the home Wi-Fi"):
         ap.ifconfig((AP_IP, "255.255.255.0", AP_IP, AP_IP))
     except OSError:
         pass
-    log("WiFi setup AP {} (open) — open http://{}".format(AP_SSID, AP_IP))
+    log("WiFi setup AP {} (open) — app posts to http://{}".format(AP_SSID, AP_IP))
     log(reason)
 
     http = socket.socket()
@@ -159,8 +245,12 @@ def run_portal(reason="Set the home Wi-Fi"):
 
     ip_bytes = _ip_bytes(AP_IP)
     saved = None
+    nonce = None
+    sw1_ok = False
     try:
         while saved is None:
+            if _button_down():
+                sw1_ok = True
             if dns:
                 try:
                     packet, addr = dns.recvfrom(256)
@@ -174,18 +264,52 @@ def run_portal(reason="Set the home Wi-Fi"):
             except OSError:
                 continue
             try:
-                request_line, body = _recv_request(conn)
-                method = request_line.split(" ")[0] if request_line else "GET"
-                if method == "POST":
-                    fields = parse_form_body(body)
-                    ssid = (fields.get("ssid") or "").strip()
-                    if ssid:
-                        saved = (ssid, fields.get("password") or "")
+                request_line, headers, body = _recv_request(conn)
+                method, path, query = parse_request_target(request_line)
+                if query.get("n") or query.get("nonce"):
+                    nonce = (query.get("n") or query.get("nonce") or "").strip() or nonce
+                if method == "OPTIONS":
+                    conn.send(_http_response(b"", status="204 No Content", content_type="text/plain"))
+                    continue
+                if path == "/api/status":
+                    conn.send(
+                        _json_response(
+                            {
+                                "ok": True,
+                                "ssid": AP_SSID,
+                                "ip": AP_IP,
+                                "sw1": sw1_ok,
+                                "reason": reason,
+                            }
+                        )
+                    )
+                    continue
+                if path == "/api/wifi" and method == "POST":
+                    fields = parse_body(body, headers.get("content-type", ""))
+                    ssid, password, body_nonce = wifi_fields(fields)
+                    if body_nonce:
+                        nonce = body_nonce
+                    if not ssid:
+                        conn.send(_json_response({"ok": False, "error": "missing_ssid"}, "400 Bad Request"))
+                        continue
+                    if nonce and not sw1_ok:
+                        wants_html = "json" not in headers.get("content-type", "")
+                        if wants_html:
+                            conn.send(_http_response(NEED_SW1_PAGE, status="409 Conflict"))
+                        else:
+                            conn.send(_json_response({"ok": False, "error": "press_sw1"}, "409 Conflict"))
+                        continue
+                    saved = (ssid, password, nonce)
+                    wants_html = "json" not in headers.get("content-type", "")
+                    if wants_html:
                         conn.send(_http_response(SAVED_PAGE))
                     else:
-                        conn.send(_http_response(FORM_PAGE % (reason, AP_SSID, AP_IP)))
+                        conn.send(_json_response({"ok": True}))
+                    continue
+                if sw1_ok:
+                    conn.send(_http_response(FORM_PAGE % (reason, nonce or "", AP_SSID)))
                 else:
-                    conn.send(_http_response(FORM_PAGE % (reason, AP_SSID, AP_IP)))
+                    conn.send(_http_response(WAIT_PAGE % AP_IP))
             except OSError as err:
                 log("Setup HTTP error: {}".format(err))
             finally:
