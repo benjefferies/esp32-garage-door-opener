@@ -35,3 +35,5 @@ MQTT_TOPIC_ACK = "garage/opener/ack"
 MQTT_TOPIC_STATUS = "garage/opener/gateway"
 MQTT_TOPIC_PAIR_ACK = "garage/opener/pair/ack"
 PAIR_WINDOW_S = 60
+PAIR_CONFIRM_RETRY_S = 10
+PAIR_CONFIRM_GIVE_UP_S = 15 * 60

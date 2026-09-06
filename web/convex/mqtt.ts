@@ -8,6 +8,8 @@ import { internalAction } from "./_generated/server";
 const TOPIC_CMD = "garage/opener/cmd";
 const TOPIC_PAIR_ACK = "garage/opener/pair/ack";
 const PAIR_WAIT_MS = 60_000;
+const LISTEN_SLICE_MS = 50_000;
+const LISTEN_RETRY_MS = 5_000;
 
 export const publishToggle = internalAction({
   args: { commandId: v.id("commands") },
@@ -63,47 +65,101 @@ function mqttSettings() {
   return { url: `mqtts://${host}:${port}`, username, password };
 }
 
+async function listenForPairAck(nonce: string, waitMs: number, publishPair: boolean) {
+  const settings = mqttSettings();
+  const mqttClient = await mqtt.connectAsync(settings.url, {
+    username: settings.username,
+    password: settings.password,
+    clientId: `convex-pair-${nonce.slice(0, 12)}-${Date.now().toString(36)}`,
+    rejectUnauthorized: true,
+    connectTimeout: 8000,
+  });
+  try {
+    await mqttClient.subscribeAsync(TOPIC_PAIR_ACK);
+    return await new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => resolve(false), waitMs);
+      const onMessage = (_topic: string, payload: Buffer) => {
+        const text = payload.toString().trim();
+        if (text === nonce || text === `pair:${nonce}`) {
+          clearTimeout(timer);
+          mqttClient.off("message", onMessage);
+          resolve(true);
+        }
+      };
+      mqttClient.on("message", onMessage);
+      if (!publishPair) {
+        return;
+      }
+      void mqttClient.publishAsync(TOPIC_CMD, `pair:${nonce}`).catch(() => {
+        clearTimeout(timer);
+        resolve(false);
+      });
+    });
+  } finally {
+    await mqttClient.endAsync();
+  }
+}
+
 export const runPairing = internalAction({
   args: { pairingId: v.id("pairings"), nonce: v.string() },
   handler: async (ctx, args) => {
-    let client: mqtt.MqttClient | undefined;
+    let confirmed = false;
     try {
-      const settings = mqttSettings();
-      const mqttClient = await mqtt.connectAsync(settings.url, {
-        username: settings.username,
-        password: settings.password,
-        clientId: `convex-pair-${args.nonce.slice(0, 12)}`,
-        rejectUnauthorized: true,
-        connectTimeout: 8000,
-      });
-      client = mqttClient;
-      await mqttClient.subscribeAsync(TOPIC_PAIR_ACK);
-      const matched = await new Promise<boolean>((resolve) => {
-        const timer = setTimeout(() => resolve(false), PAIR_WAIT_MS);
-        const onMessage = (_topic: string, payload: Buffer) => {
-          const text = payload.toString().trim();
-          if (text === args.nonce || text === `pair:${args.nonce}`) {
-            clearTimeout(timer);
-            mqttClient.off("message", onMessage);
-            resolve(true);
-          }
-        };
-        mqttClient.on("message", onMessage);
-        void mqttClient.publishAsync(TOPIC_CMD, `pair:${args.nonce}`).catch(() => {
-          clearTimeout(timer);
-          resolve(false);
-        });
-      });
-
+      const matched = await listenForPairAck(args.nonce, PAIR_WAIT_MS, true);
       if (matched) {
         await ctx.runMutation(internal.door.confirmPairing, { nonce: args.nonce });
+        confirmed = true;
       }
     } catch {
       // SoftAP pairing still uses this nonce after the phone leaves the internet.
-    } finally {
-      if (client) {
-        await client.endAsync();
+    }
+    if (!confirmed) {
+      await ctx.scheduler.runAfter(0, internal.mqtt.waitForPairAck, {
+        pairingId: args.pairingId,
+        nonce: args.nonce,
+      });
+    }
+  },
+});
+
+export const waitForPairAck = internalAction({
+  args: { pairingId: v.id("pairings"), nonce: v.string() },
+  handler: async (ctx, args) => {
+    const pending = await ctx.runQuery(internal.door.getPendingPairing, {
+      pairingId: args.pairingId,
+    });
+    if (!pending) {
+      return;
+    }
+    const remaining = pending.expiresAt - Date.now();
+    if (remaining <= 0) {
+      return;
+    }
+    try {
+      const matched = await listenForPairAck(
+        args.nonce,
+        Math.min(LISTEN_SLICE_MS, remaining),
+        false,
+      );
+      if (matched) {
+        await ctx.runMutation(internal.door.confirmPairing, { nonce: args.nonce });
+        return;
       }
+    } catch {
+      await ctx.scheduler.runAfter(LISTEN_RETRY_MS, internal.mqtt.waitForPairAck, {
+        pairingId: args.pairingId,
+        nonce: args.nonce,
+      });
+      return;
+    }
+    const stillPending = await ctx.runQuery(internal.door.getPendingPairing, {
+      pairingId: args.pairingId,
+    });
+    if (stillPending) {
+      await ctx.scheduler.runAfter(0, internal.mqtt.waitForPairAck, {
+        pairingId: args.pairingId,
+        nonce: args.nonce,
+      });
     }
   },
 });

@@ -15,7 +15,7 @@ If STA join fails (or nothing is saved), the gateway starts a local AP. Pairing 
 2. In the phone Wi-Fi settings, join **`garage-gw`** (password **`garage-gw`**)
 3. Open the same browser tab again — it should still render offline
 4. Press **SW1**, then the app `POST`s home SSID/password to `http://192.168.4.1/api/wifi`
-5. Rejoin home Wi-Fi or cellular. When the gateway comes online it confirms the nonce
+5. Rejoin home Wi-Fi or cellular. The app waits here while the gateway joins home Wi-Fi and confirms the nonce. That confirm can take a minute; the pairing window stays open for 15 minutes.
 
 `GET /api/status` and `POST /api/wifi` send CORS headers so the cached HTTPS app can call the SoftAP. If the browser blocks that mixed-content `fetch`, the same form submits as a normal POST to `http://192.168.4.1`.
 

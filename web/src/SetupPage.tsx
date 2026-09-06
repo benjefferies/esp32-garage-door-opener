@@ -8,7 +8,7 @@ import {
   postGatewayWifi,
   type GatewayStatus,
 } from "./gatewayApi";
-import { type StoredPairing } from "./pairingStorage";
+import { markWifiSaved, pairingWifiSaved, type StoredPairing } from "./pairingStorage";
 import { precacheAppShell } from "./precache";
 
 type Props = {
@@ -22,7 +22,7 @@ export function SetupPage({ pairing, onCancel }: Props) {
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(() => pairing?.wifiSaved === true || pairingWifiSaved());
   const [error, setError] = useState<string | null>(null);
   const [useFormPost, setUseFormPost] = useState(false);
   const [joinedAp, setJoinedAp] = useState(false);
@@ -62,6 +62,12 @@ export function SetupPage({ pairing, onCancel }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    if (saved && online === true && status === null) {
+      onCancel();
+    }
+  }, [onCancel, online, saved, status]);
+
   const onGateway = status !== null;
   const leftInternet = online === false;
   const onGarageGw = onGateway || joinedAp || (leftInternet && !saved);
@@ -94,11 +100,13 @@ export function SetupPage({ pairing, onCancel }: Props) {
       nonce,
     });
     if (result.ok) {
+      markWifiSaved();
       setSaved(true);
       setBusy(false);
       return;
     }
     if (result.unreachable) {
+      markWifiSaved();
       setUseFormPost(true);
       setBusy(false);
       queueMicrotask(() => formRef.current?.submit());
