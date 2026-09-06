@@ -1,4 +1,5 @@
 secrets.py
+wifi.json
 __pycache__/
 *.pyc
 .venv/

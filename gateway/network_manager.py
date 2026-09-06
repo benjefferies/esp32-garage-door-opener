@@ -14,43 +14,80 @@ from config import (
     BURST_INTERVAL_MS,
     ACK_TIMEOUT_MS,
     WIFI_CONNECT_TIMEOUT_S,
+    BUTTON_PIN,
+    CLEAR_WIFI_HOLD_S,
 )
+from wifi_store import clear_wifi, load_credentials, save_wifi
+from provision import run_portal
 
 
-def initialize_wifi() -> network.WLAN:
-    """Connect STA Wi-Fi so ESP-NOW shares the AP channel."""
-    log("Initializing WiFi...")
-    sta = network.WLAN(network.STA_IF)
+def reset_wifi() -> None:
+    """Forget saved STA credentials and reboot into the setup AP."""
+    clear_wifi()
+    log("Wi-Fi reset — rebooting into setup AP")
+    time.sleep_ms(200)
+    from machine import reset
+
+    reset()
+
+
+def _clear_wifi_if_button_held() -> None:
+    from machine import Pin
+
+    button = Pin(BUTTON_PIN, Pin.IN, Pin.PULL_UP)
+    if button.value() != 0:
+        return
+    log("SW1 held — keep holding to forget Wi-Fi")
+    t0 = time.ticks_ms()
+    while button.value() == 0:
+        if time.ticks_diff(time.ticks_ms(), t0) >= CLEAR_WIFI_HOLD_S * 1000:
+            clear_wifi()
+            log("Forgot saved Wi-Fi")
+            return
+        time.sleep_ms(50)
+
+
+def _connect_sta(sta, ssid, password) -> bool:
+    log("Connecting to {}".format(ssid))
     sta.active(True)
-    sta.disconnect()
-
     try:
-        from secrets import WIFI_SSID, WIFI_PASSWORD
-    except ImportError:
-        log("No secrets.py — ESP-NOW only on channel {}".format(WIFI_CHANNEL))
-        sta.config(channel=WIFI_CHANNEL)
-        return sta
-
-    if not WIFI_SSID or WIFI_SSID == "your-wifi-ssid":
-        log("WIFI_SSID not set — ESP-NOW only on channel {}".format(WIFI_CHANNEL))
-        sta.config(channel=WIFI_CHANNEL)
-        return sta
-
-    log("Connecting to {}".format(WIFI_SSID))
-    sta.connect(WIFI_SSID, WIFI_PASSWORD)
+        sta.disconnect()
+    except OSError:
+        pass
+    sta.connect(ssid, password)
     t0 = time.ticks_ms()
     while not sta.isconnected():
         if time.ticks_diff(time.ticks_ms(), t0) > WIFI_CONNECT_TIMEOUT_S * 1000:
-            log("WiFi connect timed out — ESP-NOW only on channel {}".format(WIFI_CHANNEL))
-            sta.config(channel=WIFI_CHANNEL)
-            return sta
+            log("WiFi connect timed out")
+            return False
         time.sleep_ms(250)
-
     channel = sta.config("channel")
     ip = sta.ifconfig()[0]
     log("WiFi connected ip={} channel={}".format(ip, channel))
     log("Opener WIFI_CHANNEL must match {}".format(channel))
-    return sta
+    return True
+
+
+def initialize_wifi() -> network.WLAN:
+    """Connect STA Wi-Fi, or host a local setup AP if that fails."""
+    log("Initializing WiFi...")
+    try:
+        _clear_wifi_if_button_held()
+    except ImportError:
+        pass
+
+    sta = network.WLAN(network.STA_IF)
+    sta.active(True)
+    reason = "No Wi-Fi saved yet"
+    while True:
+        ssid, password = load_credentials()
+        if ssid and _connect_sta(sta, ssid, password):
+            return sta
+        if ssid:
+            reason = "Could not join {}".format(ssid)
+        ssid, password = run_portal(reason)
+        save_wifi(ssid, password)
+        log("Saved Wi-Fi for {}".format(ssid))
 
 
 def initialize_espnow() -> espnow.ESPNow:
