@@ -7,7 +7,8 @@ import App from "./App.tsx";
 import { SetupPage } from "./SetupPage.tsx";
 import { fetchGatewayStatus, fetchInternetReachable } from "./gatewayApi.ts";
 import { precacheAppShell } from "./precache.ts";
-import { readPairing, type StoredPairing } from "./pairingStorage.ts";
+import { markWifiSaved, readPairing, type StoredPairing } from "./pairingStorage.ts";
+import { parseSetupHash } from "./setupHash.ts";
 import "./index.css";
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL;
@@ -25,12 +26,17 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 }
 
 function isSetupHash() {
-  return window.location.hash.replace(/^#/, "") === "setup";
+  return parseSetupHash().isSetup;
 }
 
 function Root() {
   const [hashSetup, setHashSetup] = useState(isSetupHash);
-  const [pairing, setPairing] = useState<StoredPairing | null>(readPairing);
+  const [pairing, setPairing] = useState<StoredPairing | null>(() => {
+    if (parseSetupHash().wifiSaved) {
+      return markWifiSaved() ?? readPairing();
+    }
+    return readPairing();
+  });
   const [onGateway, setOnGateway] = useState(false);
   const [online, setOnline] = useState<boolean | null>(null);
   const [stayInApp, setStayInApp] = useState(false);
@@ -41,7 +47,13 @@ function Root() {
       setHashSetup(next);
       if (next) {
         setStayInApp(false);
-        setPairing((current) => current ?? readPairing());
+        if (parseSetupHash().wifiSaved) {
+          markWifiSaved();
+        }
+        setPairing((current) => {
+          const stored = readPairing();
+          return stored ?? current;
+        });
       }
     };
     window.addEventListener("hashchange", onHash);

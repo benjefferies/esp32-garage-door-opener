@@ -18,6 +18,7 @@ WIFI_PATH = "wifi.json"
 AP_SSID = "garage-gw"
 AP_PASSWORD = "garage-gw"  # WPA2; iPhones often refuse an open ESP32 AP
 AP_IP = "192.168.4.1"
+APP_URL = "https://garage-opener-rose.vercel.app"
 CLEAR_WIFI_HOLD_S = 3
 
 # Burst parameters

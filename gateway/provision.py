@@ -8,7 +8,7 @@ except ImportError:
     import json
 
 from utils import log
-from config import AP_SSID, AP_PASSWORD, AP_IP, WIFI_CHANNEL
+from config import AP_SSID, AP_PASSWORD, AP_IP, APP_URL, WIFI_CHANNEL
 
 CORS = (
     "Access-Control-Allow-Origin: *\r\n"
@@ -63,13 +63,57 @@ CAPTIVE_PROBES = {
 
 SAVED_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Garage WiFi</title>
+<title>Garage</title>
 <style>
-body{font-family:sans-serif;background:#12161c;color:#e8edf2;margin:1.5rem}
-.note{color:#9aa6b2}
+body{font-family:"IBM Plex Sans","Segoe UI",sans-serif;background:#12161c;color:#e8edf2;margin:0}
+.page{max-width:28rem;margin:0 auto;padding:2rem 1.25rem}
+.card{padding:1.25rem;border:1px solid #2a333d;border-radius:12px;background:#1a2027}
+h1{margin:0 0 1.25rem;font-weight:600;font-size:1.5rem}
+p{color:#9aa6b2;line-height:1.4}
+.pills{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 1rem}
+.pill{font-size:.75rem;padding:.25rem .6rem;border-radius:999px;border:1px solid #3a4552;color:#9aa6b2}
+.pill.on{border-color:#1f6a3d;background:#163325;color:#7dffa3}
+.pill.off{border-color:#5a3a3a;background:#2a1c1c;color:#ff8a8a}
+.pill.wait{border-color:#5a4a2a;background:#2a2416;color:#f0c36a}
 </style>
-<p>Saved. Rejoin home Wi-Fi or cellular, then open the Garage app. Pairing finishes when this gateway is online.</p>
-<p class="note">The setup network will turn off in a moment.</p>
+<main class="page">
+<h1>Garage</h1>
+<div class="pills">
+<span id="gw" class="pill wait">garage-gw checking</span>
+<span id="net" class="pill wait">Checking network…</span>
+</div>
+<section class="card">
+<p>Saved. Rejoin home Wi-Fi or cellular. This page opens the Garage app when you are online.</p>
+<p id="hint">The setup network will turn off in a moment.</p>
+</section>
+</main>
+<script>
+var APP="__APP__";
+function setPill(id, on, text){
+  var el=document.getElementById(id);
+  el.className="pill "+(on===true?"on":on===false?"off":"wait");
+  el.textContent=text;
+}
+function pingGw(){
+  return fetch("/api/status",{cache:"no-store"}).then(function(r){return r.ok}).catch(function(){return false});
+}
+function pingNet(){
+  return fetch(APP+"/manifest.webmanifest?online="+Date.now(),{mode:"no-cors",cache:"no-store"}).then(function(){return true}).catch(function(){return false});
+}
+function tick(){
+  Promise.all([pingGw(), pingNet()]).then(function(pair){
+    var gw=pair[0], net=pair[1];
+    setPill("gw", gw, gw?"garage-gw connected":"garage-gw not connected");
+    setPill("net", net, net?"Online":"Offline");
+    document.getElementById("hint").textContent=gw
+      ?"Switch to home Wi-Fi or cellular."
+      :net?"Online — opening Garage":"Waiting for home Wi-Fi or cellular…";
+    if(net) location.replace(APP+"/#setup?saved=1");
+  });
+}
+setInterval(tick, 1500);
+tick();
+</script>
 """
 
 NEED_SW1_PAGE = """<!doctype html>
@@ -114,6 +158,21 @@ def html_escape(text):
         .replace(">", "&gt;")
         .replace('"', "&quot;")
     )
+
+
+def app_origin():
+    try:
+        from secrets import APP_URL as secret_url
+
+        if secret_url:
+            return str(secret_url).rstrip("/")
+    except ImportError:
+        pass
+    return APP_URL.rstrip("/")
+
+
+def saved_page():
+    return SAVED_PAGE.replace("__APP__", app_origin())
 
 
 def need_sw1_page(nonce, ssid, password):
@@ -398,7 +457,7 @@ def run_portal(reason="Set the home Wi-Fi"):
                     saved = (ssid, password, nonce)
                     wants_html = "json" not in headers.get("content-type", "")
                     if wants_html:
-                        conn.send(_http_response(SAVED_PAGE))
+                        conn.send(_http_response(saved_page()))
                     else:
                         conn.send(_json_response({"ok": True}))
                     continue

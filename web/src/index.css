@@ -194,3 +194,36 @@ button.link {
   flex-direction: column;
   gap: 0.85rem;
 }
+
+.net-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
+.pill {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid #3a4552;
+  color: #9aa6b2;
+}
+
+.pill.on {
+  border-color: #1f6a3d;
+  background: #163325;
+  color: #7dffa3;
+}
+
+.pill.off {
+  border-color: #5a3a3a;
+  background: #2a1c1c;
+  color: #ff8a8a;
+}
+
+.pill.wait {
+  border-color: #5a4a2a;
+  background: #2a2416;
+  color: #f0c36a;
+}
