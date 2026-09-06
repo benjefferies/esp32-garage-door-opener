@@ -178,9 +178,10 @@ export function SetupPage({ pairing, onCancel }: Props) {
           <>
             <p className="meta">
               Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>,
-              password <strong>{GATEWAY_AP_PASSWORD}</strong>. This HTTPS tab
-              cannot talk to the gateway. After you join, open the setup page
-              on the board.
+              password <strong>{GATEWAY_AP_PASSWORD}</strong>. The phone should
+              open a Garage login sheet — press SW1 and save home Wi-Fi there.
+              This HTTPS tab cannot talk to the gateway. If the sheet does not
+              appear, open the setup page on the board.
             </p>
             <a className="primary" href={gatewaySetupHref}>
               Open gateway setup
