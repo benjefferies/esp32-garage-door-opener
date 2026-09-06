@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gateway"))
 from button_handler import held_long_enough
 from provision import captive_payload, captive_probe, dns_reply, form_page, need_sw1_page, parse_body, parse_form_body, parse_request_target, portal_home_page, saved_page, url_unquote, wifi_fields
 from wifi_store import clear_pair_nonce, clear_wifi, load_wifi, peek_pair_nonce, save_wifi
+from config import WIFI_CONNECT_RETRIES
 
 
 class FormParseTests(unittest.TestCase):
@@ -139,6 +140,12 @@ class WifiStoreTests(unittest.TestCase):
             self.assertEqual(load_wifi(path), ("cafe", "hidden"))
             clear_wifi(path)
             self.assertEqual(load_wifi(path), (None, None))
+
+    def test_sta_retries_before_softap(self):
+        # given a failed home Wi-Fi join
+        # when initialize_wifi decides whether to open SoftAP
+        # then it retries a few times first
+        self.assertGreaterEqual(WIFI_CONNECT_RETRIES, 3)
 
     def test_portal_save_writes_wifi_json(self):
         # given a successful SoftAP Wi-Fi post

@@ -17,6 +17,7 @@ BOOT_DELAY = 2  # seconds
 DEBOUNCE_DELAY = 0.1  # seconds
 LOOP_DELAY = 0.05  # seconds
 WIFI_CONNECT_TIMEOUT_S = 20
+WIFI_CONNECT_RETRIES = 3
 WIFI_PATH = "wifi.json"
 AP_SSID = "garage-gw"
 AP_PASSWORD = "garage-gw"  # WPA2; iPhones often refuse an open ESP32 AP

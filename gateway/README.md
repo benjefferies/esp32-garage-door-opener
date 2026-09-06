@@ -14,7 +14,7 @@ If STA join fails (or nothing is saved), the gateway starts a local AP. SoftAP *
 1. Sign in online and tap **Start pairing** (the service worker caches that tab)
 2. In the phone Wi-Fi settings, join **`garage-gw`** (password **`garage-gw`**)
 3. The captive sheet shows the same checklist and a **Processing** pill. Press **SW1**, then enter home SSID/password on that sheet
-4. After save, the sheet says it is joining home Wi-Fi, then SoftAP turns off so the phone is forced off `garage-gw`
+4. After save, the sheet says it is joining home Wi-Fi, then SoftAP turns off and the board **reboots** so STA joins from `wifi.json` (same-boot AP→STA often fails). STA retries 3 times before opening the setup AP again.
 5. The sheet opens the Garage app at `#setup?saved=1`. The checklist stays in `localStorage` so **Back online** is already checked. Pairing confirm can take a minute; the window stays open for 15 minutes
 
 If the login sheet does not appear, **Open gateway setup** in the app navigates to `http://192.168.4.1/?n=…` and carries the pairing nonce. HTTPS pages cannot `fetch` that origin (mixed content). A service worker can keep the app looking “online” on `garage-gw` even when the radio is down; that is not a ping.

@@ -14,6 +14,7 @@ from config import (
     BURST_INTERVAL_MS,
     ACK_TIMEOUT_MS,
     WIFI_CONNECT_TIMEOUT_S,
+    WIFI_CONNECT_RETRIES,
     WIFI_TXPOWER_DBM,
     BUTTON_PIN,
 )
@@ -42,14 +43,36 @@ def _clear_wifi_if_button_held() -> None:
         log("SW1 already down at boot — ignored (release, then hold 3s to forget Wi-Fi)")
 
 
+def _reboot_to_join() -> None:
+    """SoftAP → STA on the same boot often fails; a reset joins from wifi.json."""
+    log("Rebooting to join home Wi-Fi")
+    time.sleep_ms(500)
+    try:
+        from machine import reset
+
+        reset()
+    except ImportError:
+        pass
+
+
 def _connect_sta(sta, ssid, password) -> bool:
     log("Connecting to {}".format(ssid))
+    try:
+        sta.active(False)
+        time.sleep_ms(300)
+    except OSError:
+        pass
     sta.active(True)
+    time.sleep_ms(300)
     try:
         sta.disconnect()
     except OSError:
         pass
     limit_txpower(sta, WIFI_TXPOWER_DBM)
+    try:
+        sta.scan()
+    except OSError:
+        pass
     sta.connect(ssid, password)
     t0 = time.ticks_ms()
     while not sta.isconnected():
@@ -90,9 +113,12 @@ def initialize_wifi():
     pair_nonce = peek_pair_nonce()
     while True:
         ssid, password = load_credentials()
-        if ssid and _connect_sta(sta, ssid, password):
-            return sta, pair_nonce
         if ssid:
+            for attempt in range(1, WIFI_CONNECT_RETRIES + 1):
+                log("STA join {}/{}".format(attempt, WIFI_CONNECT_RETRIES))
+                if _connect_sta(sta, ssid, password):
+                    return sta, peek_pair_nonce() or pair_nonce
+                time.sleep_ms(1500)
             reason = "Could not join {}".format(ssid)
         saved = run_portal(reason)
         if not saved:
@@ -102,6 +128,7 @@ def initialize_wifi():
             pair_nonce = portal_nonce
         save_wifi(ssid, password, pair_nonce=pair_nonce)
         log("Saved Wi-Fi for {}".format(ssid))
+        _reboot_to_join()
 
 
 def initialize_espnow() -> espnow.ESPNow:
