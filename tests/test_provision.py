@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gateway"))
 
 from button_handler import held_long_enough
-from provision import captive_probe, need_sw1_page, parse_body, parse_form_body, parse_request_target, url_unquote, wifi_fields
+from provision import captive_probe, need_sw1_page, parse_body, parse_form_body, parse_request_target, saved_page, url_unquote, wifi_fields
 from wifi_store import clear_pair_nonce, clear_wifi, load_wifi, peek_pair_nonce, save_wifi
 
 
@@ -47,6 +47,17 @@ class FormParseTests(unittest.TestCase):
         self.assertEqual(captive_probe("/generate_204")[1], "204 No Content")
         self.assertEqual(captive_probe("/hotspot-detect.html")[0], "Success")
         self.assertIsNone(captive_probe("/api/status"))
+
+    def test_saved_page_redirects_when_online(self):
+        # given Wi-Fi credentials were posted from the form
+        # when the saved page is rendered
+        # then it probes garage-gw and the app URL so it can leave this tab
+        html = saved_page()
+        self.assertIn("Saved. Rejoin home Wi-Fi", html)
+        self.assertIn("/api/status", html)
+        self.assertIn("garage-opener-rose.vercel.app", html)
+        self.assertIn("/#setup?saved=1", html)
+        self.assertNotIn("__APP__", html)
 
     def test_need_sw1_page_keeps_credentials(self):
         # given a form post before SW1

@@ -3,13 +3,12 @@ import {
   GATEWAY_AP_PASSWORD,
   GATEWAY_AP_SSID,
   GATEWAY_ORIGIN,
-  fetchGatewayStatus,
-  fetchInternetReachable,
   postGatewayWifi,
-  type GatewayStatus,
 } from "./gatewayApi";
+import { NetworkPills, useNetworkProbe } from "./NetworkStatus";
 import { markWifiSaved, pairingWifiSaved, type StoredPairing } from "./pairingStorage";
 import { precacheAppShell } from "./precache";
+import { parseSetupHash } from "./setupHash";
 
 type Props = {
   pairing: StoredPairing | null;
@@ -17,12 +16,13 @@ type Props = {
 };
 
 export function SetupPage({ pairing, onCancel }: Props) {
-  const [status, setStatus] = useState<GatewayStatus | null>(null);
-  const [online, setOnline] = useState<boolean | null>(null);
+  const { status, online, onGateway } = useNetworkProbe();
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(() => pairing?.wifiSaved === true || pairingWifiSaved());
+  const [saved, setSaved] = useState(
+    () => parseSetupHash().wifiSaved || pairing?.wifiSaved === true || pairingWifiSaved(),
+  );
   const [error, setError] = useState<string | null>(null);
   const [useFormPost, setUseFormPost] = useState(false);
   const [joinedAp, setJoinedAp] = useState(false);
@@ -34,43 +34,14 @@ export function SetupPage({ pairing, onCancel }: Props) {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const poll = async () => {
-      const [nextStatus, nextOnline] = await Promise.all([
-        fetchGatewayStatus(),
-        fetchInternetReachable(),
-      ]);
-      if (!cancelled) {
-        setStatus(nextStatus);
-        setOnline(nextOnline);
-      }
-    };
-    const onWake = () => {
-      void poll();
-    };
-    void poll();
-    const id = setInterval(() => {
-      void poll();
-    }, 1500);
-    document.addEventListener("visibilitychange", onWake);
-    window.addEventListener("focus", onWake);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onWake);
-      window.removeEventListener("focus", onWake);
-    };
+    if (parseSetupHash().wifiSaved) {
+      markWifiSaved();
+      setSaved(true);
+    }
   }, []);
 
-  useEffect(() => {
-    if (saved && online === true && status === null) {
-      onCancel();
-    }
-  }, [onCancel, online, saved, status]);
-
-  const onGateway = status !== null;
   const leftInternet = online === false;
-  const onGarageGw = onGateway || joinedAp || (leftInternet && !saved);
+  const onGarageGw = saved || onGateway || joinedAp || leftInternet;
   const nonce = pairing?.nonce ?? "";
   const ready = Boolean(pairing?.nonce);
   const pressedPair = Boolean(status?.sw1) || saved;
@@ -124,6 +95,7 @@ export function SetupPage({ pairing, onCancel }: Props) {
           Back
         </button>
       </header>
+      <NetworkPills onGateway={onGateway} online={online} />
       <section className="card">
         <ul className="checklist">
           {steps.map((step, index) => {
@@ -188,10 +160,6 @@ export function SetupPage({ pairing, onCancel }: Props) {
               Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>,
               password <strong>{GATEWAY_AP_PASSWORD}</strong>. If a Wi-Fi login
               page opens, close it and come back to this Garage tab.
-            </p>
-            <p className="meta">
-              Gateway {onGateway ? "reached" : "not reached"} · Internet{" "}
-              {online === true ? "yes" : online === false ? "no" : "checking"}
             </p>
             <button type="button" className="primary" onClick={() => setJoinedAp(true)}>
               I&apos;m on {GATEWAY_AP_SSID}
