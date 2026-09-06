@@ -14,6 +14,11 @@ BOOT_DELAY = 2  # seconds
 DEBOUNCE_DELAY = 0.1  # seconds
 LOOP_DELAY = 0.05  # seconds
 WIFI_CONNECT_TIMEOUT_S = 20
+WIFI_PATH = "wifi.json"
+AP_SSID = "garage-gw"
+AP_PASSWORD = "garage-setup"
+AP_IP = "192.168.4.1"
+CLEAR_WIFI_HOLD_S = 3
 
 # Burst parameters
 BURST_COUNT = 20
