@@ -69,8 +69,8 @@ export const getStatus = query({
 });
 
 export const requestPairing = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { nonce: v.optional(v.string()) },
+  handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
     const now = Date.now();
 
@@ -82,7 +82,7 @@ export const requestPairing = mutation({
       await ctx.db.patch(row._id, { status: "expired" });
     }
 
-    const nonce = crypto.randomUUID().replaceAll("-", "");
+    const nonce = (args.nonce || crypto.randomUUID()).replaceAll("-", "");
     const pairingId = await ctx.db.insert("pairings", {
       nonce,
       tokenIdentifier: identity.tokenIdentifier,

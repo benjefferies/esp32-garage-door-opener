@@ -19,6 +19,19 @@ Clerk-authenticated Convex app. **Toggle garage** publishes `toggle` to HiveMQ t
    - `https://garage-opener-rose.vercel.app`
    - `https://marvelous-herring-626.eu-west-1.convex.site`
 
+## CI deploy
+
+Every push runs `.github/workflows/deploy.yml`: Convex production first, then Vercel production. Vercel’s own git builds are skipped (`ignoreCommand`) so only this workflow ships.
+
+Set these GitHub Actions secrets:
+
+| Secret | Where to get it |
+|------|--------|
+| `CONVEX_DEPLOY_KEY` | Convex dashboard → project **garage-opener** → Production → Deploy key |
+| `VERCEL_TOKEN` | https://vercel.com/account/tokens |
+| `VERCEL_ORG_ID` | `team_YdzCRmL3rTmP7y4IHSLMrnBk` |
+| `VERCEL_PROJECT_ID` | `prj_etXJPQ9ANb89gjjidzsKaHubHMBi` |
+
 ## Vercel (frontend)
 
 Production: https://garage-opener-rose.vercel.app
