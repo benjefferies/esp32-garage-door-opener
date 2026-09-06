@@ -74,9 +74,54 @@ body{font-family:sans-serif;background:#12161c;color:#e8edf2;margin:1.5rem}
 
 NEED_SW1_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Garage WiFi</title>
-<p>Press SW1 on the gateway, then submit again.</p>
+<title>Garage</title>
+<style>
+body{font-family:"IBM Plex Sans","Segoe UI",sans-serif;background:#12161c;color:#e8edf2;margin:0}
+.page{max-width:28rem;margin:0 auto;padding:2rem 1.25rem}
+.card{padding:1.25rem;border:1px solid #2a333d;border-radius:12px;background:#1a2027}
+h1{margin:0 0 1.25rem;font-weight:600;font-size:1.5rem}
+p{color:#9aa6b2;line-height:1.4}
+button{margin-top:1rem;padding:.85rem 1rem;width:100%;border:0;border-radius:8px;background:#2f6fed;color:#e8edf2;font:inherit;font-weight:600}
+</style>
+<main class="page">
+<h1>Garage</h1>
+<section class="card">
+<p>Press the pair button (SW1) on the gateway. This page saves again when it sees the press.</p>
+<form id="f" method="post" action="/api/wifi">
+<input type="hidden" name="n" value="__N__">
+<input type="hidden" name="ssid" value="__S__">
+<input type="hidden" name="password" value="__P__">
+<button>Save again</button>
+</form>
+</section>
+</main>
+<script>
+function tick(){
+  fetch("/api/status").then(function(r){return r.json()}).then(function(j){
+    if(j.sw1) document.getElementById("f").submit();
+  }).catch(function(){});
+}
+setInterval(tick, 800);
+</script>
 """
+
+
+def html_escape(text):
+    text = "" if text is None else str(text)
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def need_sw1_page(nonce, ssid, password):
+    return (
+        NEED_SW1_PAGE.replace("__N__", html_escape(nonce or ""))
+        .replace("__S__", html_escape(ssid or ""))
+        .replace("__P__", html_escape(password or ""))
+    )
 
 
 def url_unquote(text):
@@ -346,7 +391,7 @@ def run_portal(reason="Set the home Wi-Fi"):
                     if nonce and not sw1_ok:
                         wants_html = "json" not in headers.get("content-type", "")
                         if wants_html:
-                            conn.send(_http_response(NEED_SW1_PAGE, status="409 Conflict"))
+                            conn.send(_http_response(need_sw1_page(nonce, ssid, password)))
                         else:
                             conn.send(_json_response({"ok": False, "error": "press_sw1"}, "409 Conflict"))
                         continue

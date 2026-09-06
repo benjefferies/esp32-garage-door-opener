@@ -25,6 +25,7 @@ export function SetupPage({ pairing, onCancel }: Props) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useFormPost, setUseFormPost] = useState(false);
+  const [joinedAp, setJoinedAp] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const remaining = useCountdown(pairing?.expiresAt ?? null);
 
@@ -63,7 +64,7 @@ export function SetupPage({ pairing, onCancel }: Props) {
 
   const onGateway = status !== null;
   const leftInternet = online === false;
-  const onGarageGw = onGateway || (leftInternet && !saved);
+  const onGarageGw = onGateway || joinedAp || (leftInternet && !saved);
   const nonce = pairing?.nonce ?? "";
   const ready = Boolean(pairing?.nonce);
   const pressedPair = Boolean(status?.sw1) || saved;
@@ -74,6 +75,7 @@ export function SetupPage({ pairing, onCancel }: Props) {
     { done: ready, label: "Ready to start pairing" },
     { done: onGarageGw, label: `Connect to WiFi called ${GATEWAY_AP_SSID}` },
     { done: pressedPair, label: "Press pair button" },
+    { done: saved, label: "Setup WiFi on gateway" },
     { done: backOnline, label: "Back online" },
   ];
   const currentIndex = steps.findIndex((step) => !step.done);
@@ -173,13 +175,24 @@ export function SetupPage({ pairing, onCancel }: Props) {
             </button>
           </form>
         ) : currentIndex === 1 ? (
-          <p className="meta">
-            Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>,
-            password <strong>{GATEWAY_AP_PASSWORD}</strong>. If a Wi-Fi login
-            page opens, close it and come back to this Garage tab.
-          </p>
+          <>
+            <p className="meta">
+              Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>,
+              password <strong>{GATEWAY_AP_PASSWORD}</strong>. If a Wi-Fi login
+              page opens, close it and come back to this Garage tab.
+            </p>
+            <p className="meta">
+              Gateway {onGateway ? "reached" : "not reached"} · Internet{" "}
+              {online === true ? "yes" : online === false ? "no" : "checking"}
+            </p>
+            <button type="button" className="primary" onClick={() => setJoinedAp(true)}>
+              I&apos;m on {GATEWAY_AP_SSID}
+            </button>
+          </>
         ) : currentIndex === 2 ? (
           <p className="meta">Press the pair button (SW1) on the gateway.</p>
+        ) : currentIndex === 3 ? (
+          <p className="meta">Enter the home Wi-Fi name and password to save on the gateway.</p>
         ) : null}
       </section>
     </main>
