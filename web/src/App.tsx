@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SignInButton, UserButton } from "@clerk/react";
+import { SignInButton, SignUpButton, UserButton } from "@clerk/react";
 import { Authenticated, AuthLoading, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 
@@ -18,11 +18,16 @@ export default function App() {
       <Unauthenticated>
         <section className="card">
           <p className="lede">Sign in with Clerk to send a toggle to the door.</p>
-          <SignInButton mode="modal">
-            <button type="button" className="primary">
-              Sign in
-            </button>
-          </SignInButton>
+          <div className="auth-actions">
+            <SignInButton mode="modal">
+              <button type="button" className="primary">
+                Sign in
+              </button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <button type="button">Sign up</button>
+            </SignUpButton>
+          </div>
         </section>
       </Unauthenticated>
       <Authenticated>
