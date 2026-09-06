@@ -58,7 +58,11 @@ def _connect_sta(sta, ssid, password) -> bool:
     t0 = time.ticks_ms()
     while not sta.isconnected():
         if time.ticks_diff(time.ticks_ms(), t0) > WIFI_CONNECT_TIMEOUT_S * 1000:
-            log("WiFi connect timed out")
+            try:
+                status = sta.status()
+            except OSError:
+                status = "?"
+            log("WiFi connect timed out status={}".format(status))
             return False
         time.sleep_ms(250)
     channel = sta.config("channel")

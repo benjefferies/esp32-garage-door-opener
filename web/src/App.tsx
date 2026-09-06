@@ -112,7 +112,7 @@ function ClaimPanel({
   const [error, setError] = useState<string | null>(null);
   const remaining = useCountdown(expiresAt);
   const wifiSaved = pairingWifiSaved();
-  const { onGateway, online } = useNetworkProbe();
+  const { onGateway, online } = useNetworkProbe(nonce);
 
   useEffect(() => {
     if (nonce && expiresAt) {
@@ -202,11 +202,24 @@ function DoorPanel() {
 
   const doorState = status?.door?.state ?? "unknown";
   const last = status?.lastCommand;
+  const now = useNow();
+  const heartbeatAt = status?.door?.lastHeartbeatAt ?? 0;
+  const readingAt = status?.door?.lastStateAt ?? 0;
+  const gatewayOnline = status?.door?.gatewayOnline === true;
 
   return (
     <section className="card">
       <p className={`state state-${doorState}`}>
         Door is <strong>{doorState}</strong>
+      </p>
+      <p className="meta">
+        Gateway heartbeat{" "}
+        <strong>{heartbeatAt ? formatAge(heartbeatAt, now) : "never"}</strong>
+        {gatewayOnline ? "" : " · offline"}
+      </p>
+      <p className="meta">
+        Last door reading{" "}
+        <strong>{readingAt ? `${doorState} · ${formatAge(readingAt, now)}` : "none yet"}</strong>
       </p>
       {last ? (
         <p className="meta">
@@ -232,6 +245,27 @@ function DoorPanel() {
       </button>
     </section>
   );
+}
+
+function formatAge(timestamp: number, now: number) {
+  const seconds = Math.max(0, Math.round((now - timestamp) / 1000));
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  return `${Math.floor(minutes / 60)}h ago`;
+}
+
+function useNow() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
 }
 
 function formatRemaining(totalSeconds: number) {

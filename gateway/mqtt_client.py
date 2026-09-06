@@ -52,6 +52,10 @@ class GatewayMqtt:
             ssl=ctx,
         )
         client.set_callback(self._on_message)
+        try:
+            client.set_last_will(MQTT_TOPIC_STATUS, b"offline", retain=True)
+        except (OSError, MQTTException, AssertionError, AttributeError):
+            pass
 
         last_err = None
         for attempt in range(1, 4):
@@ -62,10 +66,7 @@ class GatewayMqtt:
                 self.client = client
                 self._last_ping = time.ticks_ms()
                 log("MQTT subscribed to {}".format(MQTT_TOPIC_CMD))
-                try:
-                    client.publish(MQTT_TOPIC_STATUS, b"online", retain=True)
-                except (OSError, MQTTException, AssertionError):
-                    log("MQTT status publish skipped (subscribe-only user)")
+                self.publish_heartbeat()
                 return True
             except (OSError, MQTTException, AssertionError) as err:
                 last_err = err
@@ -108,6 +109,9 @@ class GatewayMqtt:
 
     def publish_pair_ack(self, nonce) -> bool:
         return self._publish(MQTT_TOPIC_PAIR_ACK, nonce.encode())
+
+    def publish_heartbeat(self) -> bool:
+        return self._publish(MQTT_TOPIC_STATUS, b"hb", retain=True)
 
     def _publish(self, topic, msg, retain=False) -> bool:
         if not self.client:

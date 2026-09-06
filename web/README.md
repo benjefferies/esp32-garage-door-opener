@@ -74,4 +74,4 @@ Set these on the Convex deployment (**Environment Variables**), not Wi‑Fi:
 
 Sign-up is **restricted** in Clerk. After you sign in, **Start pairing** stores a nonce in the browser and caches this app with a service worker. Join the gateway AP **`garage-gw`** (password **`garage-gw`**), reopen this tab offline, press **SW1**, and save home Wi-Fi to `http://192.168.4.1/api/wifi`. After you rejoin home Wi-Fi the app waits for the gateway to come online and confirm that nonce. That confirm is what adds your Clerk user as an owner; `toggleDoor` rejects everyone else.
 
-Door open/closed stays `unknown` until the gateway reports reed state. The button still sends MQTT.
+Door open/closed stays `unknown` until the gateway reports reed state. The owner view shows the last gateway heartbeat (`garage/opener/gateway`) and the last reed reading (`garage/opener/state`). The button still sends MQTT.

@@ -4,7 +4,14 @@ ESP32-NOW Gateway: local button + HiveMQ commands to the opener.
 
 import time
 from utils import log
-from config import BOOT_DELAY, LOOP_DELAY, PAIR_CONFIRM_GIVE_UP_S, PAIR_CONFIRM_RETRY_S, PAIR_WINDOW_S
+from config import (
+    BOOT_DELAY,
+    LOOP_DELAY,
+    MQTT_HEARTBEAT_S,
+    PAIR_CONFIRM_GIVE_UP_S,
+    PAIR_CONFIRM_RETRY_S,
+    PAIR_WINDOW_S,
+)
 from network_manager import (
     initialize_wifi,
     initialize_espnow,
@@ -80,11 +87,17 @@ def main() -> None:
 
     button_handler = ButtonHandler(on_press=on_button, on_long_press=reset_wifi)
     log("Gateway ready. SW1 toggles, hold 3s resets Wi-Fi")
+    next_heartbeat = time.time() + MQTT_HEARTBEAT_S
 
     while True:
         button_handler.handle_button()
         mqtt.check()
         poll_espnow(espnow_instance, mqtt)
+        if sta.isconnected() and time.time() >= next_heartbeat:
+            if not mqtt.client:
+                mqtt.connect()
+            mqtt.publish_heartbeat()
+            next_heartbeat = time.time() + MQTT_HEARTBEAT_S
         if confirm_nonce and time.time() >= confirm_until:
             log("SoftAP pairing confirm timed out")
             confirm_nonce = None
