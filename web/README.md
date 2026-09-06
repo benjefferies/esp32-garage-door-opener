@@ -8,7 +8,7 @@ Clerk-authenticated Convex app. **Toggle garage** publishes `toggle` to HiveMQ t
 2. Enable the **Convex** integration (creates a JWT template named `convex`).
 3. Copy the **Frontend API URL** (`https://verb-noun-00.clerk.accounts.dev`) and set it on the Convex **dev** deployment:
 
-   `npx convex env set CLERK_JWT_ISSUER_DOMAIN https://YOUR.clerk.accounts.dev`
+   `npx convex env set CLERK_JWT_ISSUER_DOMAIN https://ready-caiman-9399.clerk.accounts.dev`
 
 4. Put the publishable key in `web/.env.local`:
 
