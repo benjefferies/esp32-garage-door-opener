@@ -7,8 +7,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gateway"))
 
 from button_handler import held_long_enough
-from provision import parse_form_body, url_unquote
-from wifi_store import clear_wifi, load_wifi, save_wifi
+from provision import parse_body, parse_form_body, parse_request_target, url_unquote, wifi_fields
+from wifi_store import clear_pair_nonce, clear_wifi, load_wifi, peek_pair_nonce, save_wifi
 
 
 class FormParseTests(unittest.TestCase):
@@ -27,6 +27,19 @@ class FormParseTests(unittest.TestCase):
         self.assertEqual(fields["ssid"], "home-net")
         self.assertEqual(fields["password"], "s3cret")
 
+    def test_parses_request_target_and_json_body(self):
+        # given an API request from the cached web app
+        # when the path and JSON body are parsed
+        # then the nonce is available for SoftAP pairing
+        method, path, query = parse_request_target("GET /api/status?n=abc123 HTTP/1.0")
+        self.assertEqual(method, "GET")
+        self.assertEqual(path, "/api/status")
+        self.assertEqual(query["n"], "abc123")
+        fields = parse_body(b'{"ssid":"cafe","password":"x","nonce":"deadbeef"}', "application/json")
+        self.assertEqual(wifi_fields(fields), ("cafe", "x", "deadbeef"))
+        form = parse_body(b"ssid=cafe&password=x&n=deadbeef", "application/x-www-form-urlencoded")
+        self.assertEqual(wifi_fields(form), ("cafe", "x", "deadbeef"))
+
 
 class HoldResetTests(unittest.TestCase):
     def test_three_seconds_is_a_reset(self):
@@ -44,12 +57,17 @@ class WifiStoreTests(unittest.TestCase):
         # then the same ssid is returned
         with tempfile.TemporaryDirectory() as tmp:
             path = str(Path(tmp) / "wifi.json")
-            save_wifi("cafe", "hidden", path=path)
+            save_wifi("cafe", "hidden", pair_nonce="deadbeef", path=path)
             ssid, password = load_wifi(path)
             self.assertEqual(ssid, "cafe")
             self.assertEqual(password, "hidden")
+            self.assertEqual(peek_pair_nonce(path), "deadbeef")
             data = json.loads(Path(path).read_text())
             self.assertEqual(data["ssid"], "cafe")
+            self.assertEqual(data["pair_nonce"], "deadbeef")
+            clear_pair_nonce(path)
+            self.assertEqual(peek_pair_nonce(path), None)
+            self.assertEqual(load_wifi(path), ("cafe", "hidden"))
             clear_wifi(path)
             self.assertEqual(load_wifi(path), (None, None))
 

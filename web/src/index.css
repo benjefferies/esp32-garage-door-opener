@@ -126,3 +126,59 @@ button.link {
   margin: 0;
   color: #ff8a8a;
 }
+
+.steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #c5d0d8;
+  font-size: 0.95rem;
+}
+
+.steps li + li {
+  margin-top: 0.35rem;
+}
+
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.checklist li {
+  display: grid;
+  grid-template-columns: 1.35rem 1fr;
+  gap: 0.7rem;
+  align-items: start;
+  color: #c5d0d8;
+  font-size: 0.95rem;
+}
+
+.checklist .done {
+  color: #e8edf2;
+}
+
+.checklist .mark {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  border: 1px solid #3a4552;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.checklist .done .mark {
+  background: #1f6a3d;
+  border-color: #1f6a3d;
+  color: #d8ffe6;
+}
+
+.wifi-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}

@@ -17,7 +17,7 @@ from config import (
     BUTTON_PIN,
     CLEAR_WIFI_HOLD_S,
 )
-from wifi_store import clear_wifi, load_credentials, save_wifi
+from wifi_store import clear_wifi, load_credentials, peek_pair_nonce, save_wifi
 from provision import run_portal
 
 
@@ -68,8 +68,12 @@ def _connect_sta(sta, ssid, password) -> bool:
     return True
 
 
-def initialize_wifi() -> network.WLAN:
-    """Connect STA Wi-Fi, or host a local setup AP if that fails."""
+def initialize_wifi():
+    """Connect STA Wi-Fi, or host a local setup AP if that fails.
+
+    Returns (sta, pair_nonce). pair_nonce is set when the offline web app
+    posted credentials during SoftAP pairing.
+    """
     log("Initializing WiFi...")
     try:
         _clear_wifi_if_button_held()
@@ -79,14 +83,20 @@ def initialize_wifi() -> network.WLAN:
     sta = network.WLAN(network.STA_IF)
     sta.active(True)
     reason = "No Wi-Fi saved yet"
+    pair_nonce = peek_pair_nonce()
     while True:
         ssid, password = load_credentials()
         if ssid and _connect_sta(sta, ssid, password):
-            return sta
+            return sta, pair_nonce
         if ssid:
             reason = "Could not join {}".format(ssid)
-        ssid, password = run_portal(reason)
-        save_wifi(ssid, password)
+        saved = run_portal(reason)
+        if not saved:
+            continue
+        ssid, password, portal_nonce = saved
+        if portal_nonce:
+            pair_nonce = portal_nonce
+        save_wifi(ssid, password, pair_nonce=pair_nonce)
         log("Saved Wi-Fi for {}".format(ssid))
 
 

@@ -1,20 +1,25 @@
 # ESP32 Garage Door Opener Gateway
 
-Sends ESP-NOW toggles to the opener from **SW1** or from **HiveMQ Cloud** (`garage/opener/cmd`). Web accounts can only toggle after an SW1 pairing confirm.
+Sends ESP-NOW toggles to the opener from **SW1** or from **HiveMQ Cloud** (`garage/opener/cmd`). Web accounts can only toggle after pairing at the gateway.
 
 ## Hardware
 
 - Custom C3 board, LiPo seated
 - **SW1** (GPIO 9 / BOOT) is the local trigger
 
-## Wi-Fi setup
+## Wi-Fi setup (offline web app)
 
-If STA join fails (or nothing is saved), the gateway starts a local AP:
+If STA join fails (or nothing is saved), the gateway starts a local AP. Pairing is meant to stay in the Garage web app:
 
-1. Join **`garage-gw`** (open, no password)
-2. Open **http://192.168.4.1** (phones often pop a captive-portal sheet)
-3. Enter the home SSID and password
-4. The board writes `wifi.json` and tries STA again
+1. Sign in online and tap **Start pairing** (the service worker caches that tab)
+2. In the phone Wi-Fi settings, join **`garage-gw`** (open, no password)
+3. Open the same browser tab again — it should still render offline
+4. Press **SW1**, then the app `POST`s home SSID/password to `http://192.168.4.1/api/wifi`
+5. Rejoin home Wi-Fi or cellular. When the gateway comes online it confirms the nonce
+
+`GET /api/status` and `POST /api/wifi` send CORS headers so the cached HTTPS app can call the SoftAP. If the browser blocks that mixed-content `fetch`, the same form submits as a normal POST to `http://192.168.4.1`.
+
+A captive-portal page is still served at **http://192.168.4.1** as a fallback.
 
 Hold **SW1** for more than 3 seconds at any time to forget `wifi.json` and reboot into the setup AP. The same hold during `Initializing WiFi...` also clears credentials before the first STA attempt.
 
