@@ -7,8 +7,8 @@ try:
 except ImportError:
     import json
 
-from utils import log
-from config import AP_SSID, AP_PASSWORD, AP_IP, AP_DNS, APP_URL, WIFI_CHANNEL
+from utils import limit_txpower, log
+from config import AP_SSID, AP_PASSWORD, AP_IP, AP_DNS, APP_URL, WIFI_CHANNEL, WIFI_TXPOWER_DBM
 from wifi_store import save_wifi
 
 CORS = (
@@ -391,6 +391,7 @@ def _start_ap():
         )
     except TypeError:
         ap.config(essid=AP_SSID, password=AP_PASSWORD)
+    limit_txpower(ap, WIFI_TXPOWER_DBM)
     try:
         ap.ifconfig((AP_IP, "255.255.255.0", AP_IP, AP_DNS))
     except OSError:

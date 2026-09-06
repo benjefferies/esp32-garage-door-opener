@@ -6,6 +6,8 @@ Configuration settings for the ESP32-NOW Garage Door Opener
 # Must match the home AP channel once the gateway joins Wi-Fi
 WIFI_CHANNEL = 6
 BROADCAST_ADDRESS = b"\xff\xff\xff\xff\xff\xff"
+# Same XC6206 limit as the gateway. ESP-NOW TX still needs to reach it.
+WIFI_TXPOWER_DBM = 8
 
 # Hardware settings
 # OC1 pin 1 (anode) is GPIO7; cathode to GND (drive high to close the door contacts)

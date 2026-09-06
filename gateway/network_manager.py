@@ -5,7 +5,7 @@ Network management for the ESP32-NOW Gateway
 import network
 import espnow
 import time
-from utils import log
+from utils import limit_txpower, log
 from protocol import parse_ack, parse_state
 from config import (
     WIFI_CHANNEL,
@@ -14,6 +14,7 @@ from config import (
     BURST_INTERVAL_MS,
     ACK_TIMEOUT_MS,
     WIFI_CONNECT_TIMEOUT_S,
+    WIFI_TXPOWER_DBM,
     BUTTON_PIN,
 )
 from wifi_store import clear_wifi, load_credentials, peek_pair_nonce, save_wifi
@@ -48,6 +49,7 @@ def _connect_sta(sta, ssid, password) -> bool:
         sta.disconnect()
     except OSError:
         pass
+    limit_txpower(sta, WIFI_TXPOWER_DBM)
     sta.connect(ssid, password)
     t0 = time.ticks_ms()
     while not sta.isconnected():
