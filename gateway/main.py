@@ -86,7 +86,7 @@ def main() -> None:
         log("Skipping MQTT (no WiFi)")
 
     button_handler = ButtonHandler(on_press=on_button, on_long_press=reset_wifi)
-    log("Gateway ready. SW1 toggles, hold 3s resets Wi-Fi")
+    log("Gateway ready. SW1 toggles; release, then hold 3s to reset Wi-Fi")
     next_heartbeat = time.time() + MQTT_HEARTBEAT_S
 
     while True:
