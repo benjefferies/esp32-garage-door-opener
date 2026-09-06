@@ -23,7 +23,7 @@ Hold **SW1** for more than 3 seconds after it has been released to forget `wifi.
 
 After `sta.connect()`, the radio uses the **home AP channel**. Set opener `WIFI_CHANNEL` to that number or the door radio will miss packets.
 
-`WIFI_TXPOWER_DBM` is **8** so SoftAP/STA TX stays under the XC6206 (~250 mA). Default ~20 dBm is 280–350 mA and brownouts `VCC_3V3`. Raise it if the phone cannot see `garage-gw` or home Wi-Fi is far.
+`WIFI_TXPOWER_DBM` is **12** so STA can reach Google Wifi without going back to ~20 dBm (280–350 mA, brownouts `VCC_3V3`). Drop it to 8 if SoftAP vanishes on USB.
 
 ## Secrets
 
