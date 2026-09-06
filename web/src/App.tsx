@@ -22,8 +22,8 @@ export default function App({ onStartSetup }: Props) {
       <AuthLoading>
         <p>Loading…</p>
         {stored ? (
-          <button type="button" className="primary" onClick={() => onStartSetup(readPairing() ?? undefined)}>
-            Continue on {GATEWAY_AP_SSID}
+          <button type="button" className="primary" onClick={() => onStartSetup(stored)}>
+            Continue pairing
           </button>
         ) : null}
       </AuthLoading>
@@ -54,12 +54,28 @@ export default function App({ onStartSetup }: Props) {
 
 function GarageHome({ onStartSetup }: Props) {
   const status = useQuery(api.door.getStatus);
+  const stored = readPairing();
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setWaited(true), 2000);
+    return () => clearTimeout(id);
+  }, []);
   useEffect(() => {
     if (status?.isOwner) {
       clearPairing();
     }
   }, [status?.isOwner]);
   if (status === undefined) {
+    if (waited && stored) {
+      return (
+        <section className="card">
+          <p className="lede">The app cannot reach the internet. Continue pairing on the gateway network.</p>
+          <button type="button" className="primary" onClick={() => onStartSetup(stored)}>
+            Continue pairing
+          </button>
+        </section>
+      );
+    }
     return <p>Loading…</p>;
   }
   if (!status.isOwner) {
@@ -132,7 +148,7 @@ function ClaimPanel({
           onClick={() => {
             setBusy(true);
             setError(null);
-            void requestPairing()
+            void requestPairing({ nonce: crypto.randomUUID().replaceAll("-", "") })
               .then((result) => {
                 onStartSetup(saveStartedPairing(result));
               })

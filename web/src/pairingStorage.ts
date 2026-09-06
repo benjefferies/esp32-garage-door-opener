@@ -29,7 +29,7 @@ export function writePairing(pairing: StoredPairing): void {
 
 export function saveStartedPairing(input: { nonce?: string; expiresAt?: number }): StoredPairing {
   if (!input.nonce) {
-    throw new Error("Pairing did not return a nonce. Deploy Convex and try again.");
+    throw new Error("Pairing did not return a nonce");
   }
   const serverExpiry = typeof input.expiresAt === "number" ? input.expiresAt : 0;
   const pairing = {
