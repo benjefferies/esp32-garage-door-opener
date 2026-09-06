@@ -111,6 +111,32 @@ export const requestPairing = mutation({
   },
 });
 
+export const unpair = mutation({
+  args: {},
+  returns: v.object({ removed: v.boolean() }),
+  handler: async (ctx) => {
+    const identity = await requireIdentity(ctx);
+    const owner = await ctx.db
+      .query("owners")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+    if (owner) {
+      await ctx.db.delete(owner._id);
+    }
+
+    const rows = await ctx.db
+      .query("pairings")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .collect();
+    for (const row of rows) {
+      if (row.status === "pending") {
+        await ctx.db.patch(row._id, { status: "expired" });
+      }
+    }
+    return { removed: owner !== null };
+  },
+});
+
 export const toggleDoor = mutation({
   args: {},
   handler: async (ctx) => {

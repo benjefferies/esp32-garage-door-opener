@@ -197,7 +197,9 @@ function ClaimPanel({
 function DoorPanel() {
   const status = useQuery(api.door.getStatus);
   const toggleDoor = useMutation(api.door.toggleDoor);
+  const unpair = useMutation(api.door.unpair);
   const [busy, setBusy] = useState(false);
+  const [unpairing, setUnpairing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const doorState = status?.door?.state ?? "unknown";
@@ -232,7 +234,7 @@ function DoorPanel() {
       {error ? <p className="error">{error}</p> : null}
       <button
         className="primary"
-        disabled={busy}
+        disabled={busy || unpairing}
         onClick={() => {
           setBusy(true);
           setError(null);
@@ -242,6 +244,30 @@ function DoorPanel() {
         }}
       >
         {busy ? "Sending…" : "Toggle garage"}
+      </button>
+      <button
+        className="link"
+        disabled={busy || unpairing}
+        type="button"
+        onClick={() => {
+          if (
+            !window.confirm(
+              "Unpair this garage? You will need to pair at the gateway again to toggle from the app.",
+            )
+          ) {
+            return;
+          }
+          setUnpairing(true);
+          setError(null);
+          void unpair()
+            .then(() => {
+              clearPairing();
+            })
+            .catch((err: Error) => setError(err.message))
+            .finally(() => setUnpairing(false));
+        }}
+      >
+        {unpairing ? "Unpairing…" : "Unpair this garage"}
       </button>
     </section>
   );
