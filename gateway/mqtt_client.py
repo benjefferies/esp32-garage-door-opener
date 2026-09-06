@@ -106,13 +106,15 @@ class GatewayMqtt:
     def publish_ack(self, msg_id) -> None:
         self._publish(MQTT_TOPIC_ACK, ("ack:%s" % msg_id).encode())
 
-    def publish_pair_ack(self, nonce) -> None:
-        self._publish(MQTT_TOPIC_PAIR_ACK, nonce.encode())
+    def publish_pair_ack(self, nonce) -> bool:
+        return self._publish(MQTT_TOPIC_PAIR_ACK, nonce.encode())
 
-    def _publish(self, topic, msg, retain=False) -> None:
+    def _publish(self, topic, msg, retain=False) -> bool:
         if not self.client:
-            return
+            return False
         try:
             self.client.publish(topic, msg, retain=retain)
-        except OSError as err:
+            return True
+        except (OSError, MQTTException, AssertionError) as err:
             log("MQTT publish failed: {}".format(err))
+            return False

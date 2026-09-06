@@ -4,6 +4,7 @@ export const PAIR_WINDOW_MS = 15 * 60 * 1000;
 export type StoredPairing = {
   nonce: string;
   expiresAt: number;
+  wifiSaved?: boolean;
 };
 
 export function readPairing(): StoredPairing | null {
@@ -31,13 +32,29 @@ export function saveStartedPairing(input: { nonce?: string; expiresAt?: number }
   if (!input.nonce) {
     throw new Error("Pairing did not return a nonce");
   }
+  const current = readPairing();
   const serverExpiry = typeof input.expiresAt === "number" ? input.expiresAt : 0;
   const pairing = {
     nonce: input.nonce,
     expiresAt: Math.max(serverExpiry, Date.now() + PAIR_WINDOW_MS),
+    wifiSaved: current?.nonce === input.nonce ? current.wifiSaved : undefined,
   };
   writePairing(pairing);
   return pairing;
+}
+
+export function markWifiSaved(): StoredPairing | null {
+  const current = readPairing();
+  if (!current) {
+    return null;
+  }
+  const next = { ...current, wifiSaved: true };
+  writePairing(next);
+  return next;
+}
+
+export function pairingWifiSaved(): boolean {
+  return readPairing()?.wifiSaved === true;
 }
 
 export function clearPairing(): void {

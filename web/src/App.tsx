@@ -3,7 +3,14 @@ import { SignInButton, UserButton } from "@clerk/react";
 import { Authenticated, AuthLoading, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { GATEWAY_AP_PASSWORD, GATEWAY_AP_SSID } from "./gatewayApi";
-import { clearPairing, readPairing, saveStartedPairing, writePairing, type StoredPairing } from "./pairingStorage";
+import {
+  clearPairing,
+  pairingWifiSaved,
+  readPairing,
+  saveStartedPairing,
+  writePairing,
+  type StoredPairing,
+} from "./pairingStorage";
 
 type Props = {
   onStartSetup: (pairing?: StoredPairing) => void;
@@ -103,22 +110,39 @@ function ClaimPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const remaining = useCountdown(expiresAt);
+  const wifiSaved = pairingWifiSaved();
 
   useEffect(() => {
     if (nonce && expiresAt) {
-      writePairing({ nonce, expiresAt });
+      const current = readPairing();
+      writePairing({
+        nonce,
+        expiresAt,
+        wifiSaved: current?.nonce === nonce ? current.wifiSaved : undefined,
+      });
     }
   }, [nonce, expiresAt]);
 
   return (
     <section className="card">
-      <p className="lede">
-        Pair from this phone while you can still reach the internet. This page
-        is cached, so after you join <strong>{GATEWAY_AP_SSID}</strong> (password{" "}
-        <strong>{GATEWAY_AP_PASSWORD}</strong>) you can come back here and send
-        Wi-Fi to the gateway.
-      </p>
-      {remaining > 0 ? (
+      {wifiSaved && remaining > 0 ? (
+        <p className="lede">
+          Home Wi-Fi is saved on the gateway. Pairing finishes when that board
+          comes back online — stay on this page.
+        </p>
+      ) : (
+        <p className="lede">
+          Pair from this phone while you can still reach the internet. This page
+          is cached, so after you join <strong>{GATEWAY_AP_SSID}</strong> (password{" "}
+          <strong>{GATEWAY_AP_PASSWORD}</strong>) you can come back here and send
+          Wi-Fi to the gateway.
+        </p>
+      )}
+      {wifiSaved && remaining > 0 ? (
+        <p className="state state-unknown">
+          Waiting for the gateway — <strong>{formatRemaining(remaining)}</strong> left
+        </p>
+      ) : remaining > 0 ? (
         <p className="state state-unknown">
           Pairing open — <strong>{formatRemaining(remaining)}</strong> left
         </p>
@@ -126,7 +150,9 @@ function ClaimPanel({
         <p className="meta">No pairing window is open.</p>
       )}
       {error ? <p className="error">{error}</p> : null}
-      {remaining > 0 ? (
+      {wifiSaved && remaining > 0 ? (
+        <p className="meta">Rejoin home Wi-Fi if you have not already.</p>
+      ) : remaining > 0 ? (
         <button
           className="primary"
           type="button"

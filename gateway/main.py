@@ -4,7 +4,7 @@ ESP32-NOW Gateway: local button + HiveMQ commands to the opener.
 
 import time
 from utils import log
-from config import BOOT_DELAY, LOOP_DELAY, PAIR_WINDOW_S
+from config import BOOT_DELAY, LOOP_DELAY, PAIR_CONFIRM_GIVE_UP_S, PAIR_CONFIRM_RETRY_S, PAIR_WINDOW_S
 from network_manager import (
     initialize_wifi,
     initialize_espnow,
@@ -18,12 +18,14 @@ from pair_webhook import post_pair_confirmation
 from wifi_store import clear_pair_nonce
 
 
-def _confirm_pairing(mqtt, nonce) -> None:
+def _try_confirm_pairing(mqtt, nonce) -> bool:
     log("Confirming SoftAP pairing")
     mqtt.publish_pair_ack(nonce)
     if post_pair_confirmation(nonce):
         log("Pair webhook ok")
-    clear_pair_nonce()
+        clear_pair_nonce()
+        return True
+    return False
 
 
 def main() -> None:
@@ -64,10 +66,15 @@ def main() -> None:
         on_toggle=lambda: request_toggle("mqtt"),
         on_pair=start_pair,
     )
+    confirm_nonce = boot_pair_nonce
+    confirm_until = time.time() + PAIR_CONFIRM_GIVE_UP_S
+    next_confirm = 0
     if sta.isconnected():
         mqtt.connect()
-        if boot_pair_nonce:
-            _confirm_pairing(mqtt, boot_pair_nonce)
+        if confirm_nonce and _try_confirm_pairing(mqtt, confirm_nonce):
+            confirm_nonce = None
+        elif confirm_nonce:
+            next_confirm = time.time() + PAIR_CONFIRM_RETRY_S
     else:
         log("Skipping MQTT (no WiFi)")
 
@@ -78,6 +85,16 @@ def main() -> None:
         button_handler.handle_button()
         mqtt.check()
         poll_espnow(espnow_instance, mqtt)
+        if confirm_nonce and time.time() >= confirm_until:
+            log("SoftAP pairing confirm timed out")
+            confirm_nonce = None
+        elif confirm_nonce and sta.isconnected() and time.time() >= next_confirm:
+            if not mqtt.client:
+                mqtt.connect()
+            if _try_confirm_pairing(mqtt, confirm_nonce):
+                confirm_nonce = None
+            else:
+                next_confirm = time.time() + PAIR_CONFIRM_RETRY_S
 
         if state["pending_toggle"]:
             source = state["pending_toggle"]
