@@ -30,15 +30,15 @@ export const getStatus = query({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
 
-    const pending = await ctx.db
+    const rows = await ctx.db
       .query("pairings")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-      .order("desc")
-      .first();
-    const pairing =
-      pending && pending.status === "pending" && pending.expiresAt > Date.now()
-        ? { expiresAt: pending.expiresAt, nonce: pending.nonce }
-        : null;
+      .collect();
+    const now = Date.now();
+    const pending = rows
+      .filter((row) => row.status === "pending" && row.expiresAt > now)
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+    const pairing = pending ? { expiresAt: pending.expiresAt, nonce: pending.nonce } : null;
 
     if (!owner) {
       return {

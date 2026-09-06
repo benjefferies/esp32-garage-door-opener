@@ -12,14 +12,14 @@ Sends ESP-NOW toggles to the opener from **SW1** or from **HiveMQ Cloud** (`gara
 If STA join fails (or nothing is saved), the gateway starts a local AP. Pairing is meant to stay in the Garage web app:
 
 1. Sign in online and tap **Start pairing** (the service worker caches that tab)
-2. In the phone Wi-Fi settings, join **`garage-gw`** (open, no password)
+2. In the phone Wi-Fi settings, join **`garage-gw`** (password **`garage-gw`**)
 3. Open the same browser tab again — it should still render offline
 4. Press **SW1**, then the app `POST`s home SSID/password to `http://192.168.4.1/api/wifi`
 5. Rejoin home Wi-Fi or cellular. When the gateway comes online it confirms the nonce
 
 `GET /api/status` and `POST /api/wifi` send CORS headers so the cached HTTPS app can call the SoftAP. If the browser blocks that mixed-content `fetch`, the same form submits as a normal POST to `http://192.168.4.1`.
 
-A captive-portal page is still served at **http://192.168.4.1** as a fallback.
+Phone captive-portal checks get a success response so iOS/Android should not steal the Garage tab. If a login sheet still opens, close it and return to the app. **http://192.168.4.1** only tells you to go back; the form is at `/wifi`.
 
 Hold **SW1** for more than 3 seconds at any time to forget `wifi.json` and reboot into the setup AP. The same hold during `Initializing WiFi...` also clears credentials before the first STA attempt.
 

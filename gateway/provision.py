@@ -8,7 +8,7 @@ except ImportError:
     import json
 
 from utils import log
-from config import AP_SSID, AP_PASSWORD, AP_IP
+from config import AP_SSID, AP_PASSWORD, AP_IP, WIFI_CHANNEL
 
 CORS = (
     "Access-Control-Allow-Origin: *\r\n"
@@ -39,17 +39,27 @@ button{margin-top:1rem;padding:.8rem 1rem;width:100%}
 <p class="note">Prefer the Garage web app on this setup network. Join <strong>%s</strong>, then open the app tab.</p>
 """
 
-WAIT_PAGE = """<!doctype html>
+RETURN_APP_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="1">
-<title>Garage WiFi</title>
+<title>Garage</title>
 <style>
 body{font-family:sans-serif;background:#12161c;color:#e8edf2;margin:1.5rem}
 .note{color:#9aa6b2}
 </style>
-<p>Press <strong>SW1</strong> on the gateway, then return to the Garage app tab.</p>
-<p class="note">This page is only a fallback if the app cannot reach http://%s.</p>
+<p>Close this Wi-Fi login sheet, then go back to the <strong>Garage</strong> tab.</p>
+<p class="note">Do not set Wi-Fi here. The Garage app talks to this gateway after you return.</p>
 """
+
+CAPTIVE_PROBES = {
+    "/generate_204": ("", "204 No Content", "text/plain"),
+    "/gen_204": ("", "204 No Content", "text/plain"),
+    "/hotspot-detect.html": ("Success", "200 OK", "text/html"),
+    "/library/test/success.html": ("Success", "200 OK", "text/html"),
+    "/success.txt": ("success", "200 OK", "text/plain"),
+    "/connecttest.txt": ("Microsoft Connect Test", "200 OK", "text/plain"),
+    "/ncsi.txt": ("Microsoft NCSI", "200 OK", "text/plain"),
+    "/canonical.html": ("<HTML></HTML>\n", "200 OK", "text/html"),
+}
 
 SAVED_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -123,6 +133,19 @@ def parse_body(body, content_type=""):
             return {}
         return data if isinstance(data, dict) else {}
     return parse_form_body(text)
+
+
+def captive_probe(path):
+    clean = (path or "/").split("?")[0].rstrip("/") or "/"
+    if not clean.startswith("/"):
+        clean = "/" + clean
+    if clean in CAPTIVE_PROBES:
+        return CAPTIVE_PROBES[clean]
+    name = clean.rsplit("/", 1)[-1]
+    for probe, payload in CAPTIVE_PROBES.items():
+        if probe.endswith("/" + name) or probe == "/" + name:
+            return payload
+    return None
 
 
 def wifi_fields(fields):
@@ -205,28 +228,51 @@ def _button_down():
         return False
 
 
-def run_portal(reason="Set the home Wi-Fi"):
+def _start_ap():
     import network
+    import time
 
     sta = network.WLAN(network.STA_IF)
-    sta.active(True)
+    try:
+        sta.disconnect()
+    except OSError:
+        pass
+    sta.active(False)
+    time.sleep_ms(200)
+
     ap = network.WLAN(network.AP_IF)
+    ap.active(False)
+    time.sleep_ms(200)
     ap.active(True)
-    if AP_PASSWORD:
-        try:
-            ap.config(essid=AP_SSID, password=AP_PASSWORD, authmode=3)
-        except TypeError:
-            ap.config(essid=AP_SSID, password=AP_PASSWORD)
-    else:
-        try:
-            ap.config(essid=AP_SSID, authmode=0)
-        except TypeError:
-            ap.config(essid=AP_SSID)
+    auth = getattr(network, "AUTH_WPA_WPA2_PSK", 4)
+    try:
+        ap.config(
+            essid=AP_SSID,
+            password=AP_PASSWORD,
+            authmode=auth,
+            channel=WIFI_CHANNEL,
+        )
+    except TypeError:
+        ap.config(essid=AP_SSID, password=AP_PASSWORD)
     try:
         ap.ifconfig((AP_IP, "255.255.255.0", AP_IP, AP_IP))
     except OSError:
         pass
-    log("WiFi setup AP {} (open) — app posts to http://{}".format(AP_SSID, AP_IP))
+    t0 = time.ticks_ms()
+    while not ap.active():
+        if time.ticks_diff(time.ticks_ms(), t0) > 3000:
+            break
+        time.sleep_ms(50)
+    return sta, ap
+
+
+def run_portal(reason="Set the home Wi-Fi"):
+    sta, ap = _start_ap()
+    log(
+        "WiFi setup AP {} password {} channel {} — app posts to http://{}".format(
+            AP_SSID, AP_PASSWORD, WIFI_CHANNEL, AP_IP
+        )
+    )
     log(reason)
 
     http = socket.socket()
@@ -271,6 +317,11 @@ def run_portal(reason="Set the home Wi-Fi"):
                 if method == "OPTIONS":
                     conn.send(_http_response(b"", status="204 No Content", content_type="text/plain"))
                     continue
+                probe = captive_probe(path)
+                if probe:
+                    body, status, content_type = probe
+                    conn.send(_http_response(body, status=status, content_type=content_type))
+                    continue
                 if path == "/api/status":
                     conn.send(
                         _json_response(
@@ -306,10 +357,10 @@ def run_portal(reason="Set the home Wi-Fi"):
                     else:
                         conn.send(_json_response({"ok": True}))
                     continue
-                if sw1_ok:
+                if path in ("/wifi", "/form"):
                     conn.send(_http_response(FORM_PAGE % (reason, nonce or "", AP_SSID)))
-                else:
-                    conn.send(_http_response(WAIT_PAGE % AP_IP))
+                    continue
+                conn.send(_http_response(RETURN_APP_PAGE))
             except OSError as err:
                 log("Setup HTTP error: {}".format(err))
             finally:

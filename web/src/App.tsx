@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { SignInButton, UserButton } from "@clerk/react";
 import { Authenticated, AuthLoading, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { GATEWAY_AP_SSID } from "./gatewayApi";
-import { clearPairing, readPairing, writePairing } from "./pairingStorage";
+import { GATEWAY_AP_PASSWORD, GATEWAY_AP_SSID } from "./gatewayApi";
+import { clearPairing, readPairing, saveStartedPairing, writePairing, type StoredPairing } from "./pairingStorage";
 
 type Props = {
-  onStartSetup: () => void;
+  onStartSetup: (pairing?: StoredPairing) => void;
 };
 
 export default function App({ onStartSetup }: Props) {
@@ -22,7 +22,7 @@ export default function App({ onStartSetup }: Props) {
       <AuthLoading>
         <p>Loading…</p>
         {stored ? (
-          <button type="button" className="primary" onClick={onStartSetup}>
+          <button type="button" className="primary" onClick={() => onStartSetup(readPairing() ?? undefined)}>
             Continue on {GATEWAY_AP_SSID}
           </button>
         ) : null}
@@ -39,7 +39,7 @@ export default function App({ onStartSetup }: Props) {
             </button>
           </SignInButton>
           {stored ? (
-            <button type="button" className="link" onClick={onStartSetup}>
+            <button type="button" className="link" onClick={() => onStartSetup(readPairing() ?? undefined)}>
               Continue on {GATEWAY_AP_SSID}
             </button>
           ) : null}
@@ -81,7 +81,7 @@ function ClaimPanel({
 }: {
   expiresAt: number | null;
   nonce: string | null;
-  onStartSetup: () => void;
+  onStartSetup: (pairing?: StoredPairing) => void;
 }) {
   const requestPairing = useMutation(api.door.requestPairing);
   const [busy, setBusy] = useState(false);
@@ -98,8 +98,9 @@ function ClaimPanel({
     <section className="card">
       <p className="lede">
         Pair from this phone while you can still reach the internet. This page
-        is cached, so after you join <strong>{GATEWAY_AP_SSID}</strong> you can
-        come back here and send Wi-Fi to the gateway.
+        is cached, so after you join <strong>{GATEWAY_AP_SSID}</strong> (password{" "}
+        <strong>{GATEWAY_AP_PASSWORD}</strong>) you can come back here and send
+        Wi-Fi to the gateway.
       </p>
       {remaining > 0 ? (
         <p className="state state-unknown">
@@ -110,7 +111,17 @@ function ClaimPanel({
       )}
       {error ? <p className="error">{error}</p> : null}
       {remaining > 0 ? (
-        <button className="primary" type="button" onClick={onStartSetup}>
+        <button
+          className="primary"
+          type="button"
+          onClick={() => {
+            if (nonce && expiresAt) {
+              onStartSetup(saveStartedPairing({ nonce, expiresAt }));
+              return;
+            }
+            onStartSetup();
+          }}
+        >
           I&apos;m ready to join {GATEWAY_AP_SSID}
         </button>
       ) : (
@@ -123,8 +134,7 @@ function ClaimPanel({
             setError(null);
             void requestPairing()
               .then((result) => {
-                writePairing(result);
-                onStartSetup();
+                onStartSetup(saveStartedPairing(result));
               })
               .catch((err: Error) => setError(err.message))
               .finally(() => setBusy(false));

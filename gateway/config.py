@@ -16,7 +16,7 @@ LOOP_DELAY = 0.05  # seconds
 WIFI_CONNECT_TIMEOUT_S = 20
 WIFI_PATH = "wifi.json"
 AP_SSID = "garage-gw"
-AP_PASSWORD = ""  # open setup AP; only up when STA is down
+AP_PASSWORD = "garage-gw"  # WPA2; iPhones often refuse an open ESP32 AP
 AP_IP = "192.168.4.1"
 CLEAR_WIFI_HOLD_S = 3
 

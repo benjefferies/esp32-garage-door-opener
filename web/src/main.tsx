@@ -6,6 +6,7 @@ import { ConvexReactClient } from "convex/react";
 import App from "./App.tsx";
 import { SetupPage } from "./SetupPage.tsx";
 import { precacheAppShell } from "./precache.ts";
+import { readPairing, type StoredPairing } from "./pairingStorage.ts";
 import "./index.css";
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL;
@@ -28,16 +29,32 @@ function isSetupHash() {
 
 function Root() {
   const [setup, setSetup] = useState(isSetupHash);
+  const [pairing, setPairing] = useState<StoredPairing | null>(readPairing);
 
   useEffect(() => {
-    const onHash = () => setSetup(isSetupHash());
+    const onHash = () => {
+      const next = isSetupHash();
+      setSetup(next);
+      if (next) {
+        setPairing((current) => current ?? readPairing());
+      }
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  const startSetup = (next?: StoredPairing) => {
+    if (next) {
+      setPairing(next);
+    }
+    window.location.hash = "setup";
+    setSetup(true);
+  };
+
   if (setup) {
     return (
       <SetupPage
+        pairing={pairing}
         onCancel={() => {
           window.location.hash = "";
         }}
@@ -57,11 +74,7 @@ function Root() {
   return (
     <ClerkProvider publishableKey={clerkKey} afterSignOutUrl="/">
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <App
-          onStartSetup={() => {
-            window.location.hash = "setup";
-          }}
-        />
+        <App onStartSetup={startSetup} />
       </ConvexProviderWithClerk>
     </ClerkProvider>
   );
