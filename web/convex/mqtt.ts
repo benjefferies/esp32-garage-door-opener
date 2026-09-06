@@ -194,7 +194,7 @@ export const watchGateway = internalAction({
     try {
       await mqttClient.subscribeAsync([TOPIC_STATUS, TOPIC_STATE]);
       await new Promise<void>((resolve) => {
-        const timer = setTimeout(() => resolve(), WATCH_MS);
+        setTimeout(() => resolve(), WATCH_MS);
         mqttClient.on("message", (topic, payload) => {
           const text = payload.toString().trim();
           if (topic === TOPIC_STATE) {
