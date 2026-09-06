@@ -151,12 +151,13 @@ button.link {
   display: grid;
   grid-template-columns: 1.35rem 1fr;
   gap: 0.7rem;
-  align-items: start;
+  align-items: center;
   color: #c5d0d8;
   font-size: 0.95rem;
 }
 
-.checklist .done {
+.checklist .done,
+.checklist .active {
   color: #e8edf2;
 }
 
@@ -175,6 +176,17 @@ button.link {
   background: #1f6a3d;
   border-color: #1f6a3d;
   color: #d8ffe6;
+}
+
+.checklist .active .mark {
+  border-color: #2f6fed transparent transparent;
+  animation: mark-spin 0.7s linear infinite;
+}
+
+@keyframes mark-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .wifi-form {
