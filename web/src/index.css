@@ -55,6 +55,10 @@ h1 {
   font-size: 0.95rem;
 }
 
+.meta a {
+  color: #9ec0ff;
+}
+
 .auth-actions {
   display: flex;
   flex-wrap: wrap;
