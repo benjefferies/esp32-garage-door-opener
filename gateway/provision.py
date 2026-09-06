@@ -18,52 +18,52 @@ CORS = (
     "Access-Control-Allow-Private-Network: true\r\n"
 )
 
-FORM_PAGE = """<!doctype html>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Garage WiFi</title>
-<style>
-body{font-family:sans-serif;background:#12161c;color:#e8edf2;margin:1.5rem}
-label,p{display:block;margin:.75rem 0 .25rem}
-input{width:100%;padding:.6rem;box-sizing:border-box}
-button{margin-top:1rem;padding:.8rem 1rem;width:100%}
-.note{color:#9aa6b2;font-size:.9rem}
-</style>
-<p class="note">%s</p>
-<form method="post" action="/api/wifi">
-<input type="hidden" name="n" value="%s">
-<label>SSID</label>
-<input name="ssid" autocomplete="off" autocapitalize="none">
-<label>Password</label>
-<input name="password" type="password">
-<button>Save and connect</button>
-</form>
-<p class="note">Prefer the Garage web app on this setup network. Join <strong>%s</strong>, then open the app tab.</p>
+PORTAL_STYLE = """
+body{font-family:"IBM Plex Sans","Segoe UI",sans-serif;background:#12161c;color:#e8edf2;margin:0;line-height:1.4}
+.page{max-width:28rem;margin:0 auto;padding:2rem 1.25rem}
+h1{margin:0 0 1.25rem;font-weight:600;font-size:1.5rem}
+.card{display:flex;flex-direction:column;gap:.85rem;padding:1.25rem;border:1px solid #2a333d;border-radius:12px;background:#1a2027}
+.meta,.lede{margin:0;color:#9aa6b2;font-size:.95rem}
+.pills{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 1rem}
+.pill{font-size:.75rem;padding:.25rem .6rem;border-radius:999px;border:1px solid #1f6a3d;background:#163325;color:#7dffa3}
+.pill.wait{border-color:#5a4a2a;background:#2a2416;color:#f0c36a}
+a{color:#9ec0ff}
+.checklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.55rem}
+.checklist li{display:grid;grid-template-columns:1.35rem 1fr;gap:.7rem;align-items:center;color:#c5d0d8;font-size:.95rem}
+.checklist .done,.checklist .active{color:#e8edf2}
+.mark{width:1.35rem;height:1.35rem;border-radius:999px;border:1px solid #3a4552;display:grid;place-items:center;font-size:.75rem}
+.done .mark{background:#1f6a3d;border-color:#1f6a3d;color:#d8ffe6}
+.active .mark{border-color:#2f6fed transparent transparent;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+label{display:flex;flex-direction:column;gap:.35rem;font-size:.9rem}
+input{padding:.7rem .75rem;border:1px solid #3a4552;border-radius:8px;background:#12161c;color:#e8edf2;font:inherit}
+button{margin-top:.25rem;min-height:4.5rem;padding:.85rem 1rem;border:0;border-radius:8px;background:#2f6fed;color:#e8edf2;font:inherit;font-size:1.2rem;font-weight:600;width:100%}
 """
+
+CHECK_DONE = '<li class="done"><span class="mark">✓</span><span>Ready to start pairing</span></li><li class="done"><span class="mark">✓</span><span>Connect to WiFi called garage-gw</span></li>'
 
 PORTAL_HOME_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Garage</title>
-<style>
-body{font-family:"IBM Plex Sans","Segoe UI",sans-serif;background:#12161c;color:#e8edf2;margin:0}
-.page{max-width:28rem;margin:0 auto;padding:2rem 1.25rem}
-.card{padding:1.25rem;border:1px solid #2a333d;border-radius:12px;background:#1a2027}
-h1{margin:0 0 1.25rem;font-weight:600;font-size:1.5rem}
-p{color:#9aa6b2;line-height:1.4}
-</style>
+<style>""" + PORTAL_STYLE + """</style>
 <main class="page">
 <h1>Garage</h1>
+<div class="pills"><span class="pill">garage-gw connected</span><span class="pill wait">Processing</span></div>
 <section class="card">
-<p id="msg">Press the pair button (SW1) on the gateway. This page continues here — the phone login sheet cannot close itself.</p>
+<ul class="checklist">
+""" + CHECK_DONE + """
+<li class="active"><span class="mark"></span><span>Press pair button</span></li>
+<li><span class="mark"></span><span>Setup WiFi on gateway</span></li>
+<li><span class="mark"></span><span>Join home Wi-Fi</span></li>
+</ul>
+<p class="lede">Press the pair button (SW1) on the gateway. This sheet stays open and continues here.</p>
+<p class="meta"><a href="/wifi">Continue to Wi-Fi setup</a></p>
 </section>
 </main>
 <script>
-var APP="__APP__";
 function tick(){
   fetch("/api/status").then(function(r){return r.json()}).then(function(j){
     if(j.sw1) location.replace("/wifi");
-  }).catch(function(){});
-  fetch(APP+"/manifest.webmanifest?online="+Date.now(),{mode:"no-cors",cache:"no-store"}).then(function(){
-    location.replace(APP+"/#setup");
   }).catch(function(){});
 }
 setInterval(tick, 800);
@@ -71,88 +71,46 @@ tick();
 </script>
 """
 
-CAPTIVE_PROBES = {
-    "/generate_204": ("", "204 No Content", "text/plain"),
-    "/gen_204": ("", "204 No Content", "text/plain"),
-    "/hotspot-detect.html": ("Success", "200 OK", "text/html"),
-    "/library/test/success.html": ("Success", "200 OK", "text/html"),
-    "/success.txt": ("success", "200 OK", "text/plain"),
-    "/connecttest.txt": ("Microsoft Connect Test", "200 OK", "text/plain"),
-    "/ncsi.txt": ("Microsoft NCSI", "200 OK", "text/plain"),
-    "/canonical.html": ("<HTML></HTML>\n", "200 OK", "text/html"),
-}
-
-SAVED_PAGE = """<!doctype html>
+FORM_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Garage</title>
-<style>
-body{font-family:"IBM Plex Sans","Segoe UI",sans-serif;background:#12161c;color:#e8edf2;margin:0}
-.page{max-width:28rem;margin:0 auto;padding:2rem 1.25rem}
-.card{padding:1.25rem;border:1px solid #2a333d;border-radius:12px;background:#1a2027}
-h1{margin:0 0 1.25rem;font-weight:600;font-size:1.5rem}
-p{color:#9aa6b2;line-height:1.4}
-.pills{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 1rem}
-.pill{font-size:.75rem;padding:.25rem .6rem;border-radius:999px;border:1px solid #3a4552;color:#9aa6b2}
-.pill.on{border-color:#1f6a3d;background:#163325;color:#7dffa3}
-.pill.off{border-color:#5a3a3a;background:#2a1c1c;color:#ff8a8a}
-.pill.wait{border-color:#5a4a2a;background:#2a2416;color:#f0c36a}
-</style>
+<style>""" + PORTAL_STYLE + """</style>
 <main class="page">
 <h1>Garage</h1>
-<div class="pills">
-<span id="gw" class="pill wait">garage-gw checking</span>
-<span id="net" class="pill wait">Checking network…</span>
-</div>
+<div class="pills"><span class="pill">garage-gw connected</span><span class="pill wait">Processing</span></div>
 <section class="card">
-<p>Saved. Opening the Garage app.</p>
-<p id="hint">If this tab stays here, rejoin home Wi-Fi or cellular.</p>
+<ul class="checklist">
+""" + CHECK_DONE + """
+<li class="done"><span class="mark">✓</span><span>Press pair button</span></li>
+<li class="active"><span class="mark"></span><span>Setup WiFi on gateway</span></li>
+<li><span class="mark"></span><span>Join home Wi-Fi</span></li>
+</ul>
+<p class="meta">__REASON__</p>
+<form method="post" action="/api/wifi">
+<input type="hidden" name="n" value="__N__">
+<label>Home SSID<input name="ssid" autocomplete="off" autocapitalize="none"></label>
+<label>Password<input name="password" type="password"></label>
+<button>Save and connect</button>
+</form>
 </section>
 </main>
-<script>
-var APP="__APP__";
-location.replace(APP+"/#setup?saved=1");
-function setPill(id, on, text){
-  var el=document.getElementById(id);
-  el.className="pill "+(on===true?"on":on===false?"off":"wait");
-  el.textContent=text;
-}
-function pingGw(){
-  return fetch("/api/status",{cache:"no-store"}).then(function(r){return r.ok}).catch(function(){return false});
-}
-function pingNet(){
-  return fetch(APP+"/manifest.webmanifest?online="+Date.now(),{mode:"no-cors",cache:"no-store"}).then(function(){return true}).catch(function(){return false});
-}
-function tick(){
-  Promise.all([pingGw(), pingNet()]).then(function(pair){
-    var gw=pair[0], net=pair[1];
-    setPill("gw", gw, gw?"garage-gw connected":"garage-gw not connected");
-    setPill("net", net, net?"Online":"Offline");
-    document.getElementById("hint").textContent=gw
-      ?"Switch to home Wi-Fi or cellular."
-      :net?"Online — opening Garage":"Waiting for home Wi-Fi or cellular…";
-    if(net) location.replace(APP+"/#setup?saved=1");
-  });
-}
-setInterval(tick, 1500);
-tick();
-</script>
 """
 
 NEED_SW1_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Garage</title>
-<style>
-body{font-family:"IBM Plex Sans","Segoe UI",sans-serif;background:#12161c;color:#e8edf2;margin:0}
-.page{max-width:28rem;margin:0 auto;padding:2rem 1.25rem}
-.card{padding:1.25rem;border:1px solid #2a333d;border-radius:12px;background:#1a2027}
-h1{margin:0 0 1.25rem;font-weight:600;font-size:1.5rem}
-p{color:#9aa6b2;line-height:1.4}
-button{margin-top:1rem;padding:.85rem 1rem;width:100%;border:0;border-radius:8px;background:#2f6fed;color:#e8edf2;font:inherit;font-weight:600}
-</style>
+<style>""" + PORTAL_STYLE + """</style>
 <main class="page">
 <h1>Garage</h1>
+<div class="pills"><span class="pill">garage-gw connected</span><span class="pill wait">Processing</span></div>
 <section class="card">
-<p>Press the pair button (SW1) on the gateway. This page saves again when it sees the press.</p>
+<ul class="checklist">
+""" + CHECK_DONE + """
+<li class="active"><span class="mark"></span><span>Press pair button</span></li>
+<li><span class="mark"></span><span>Setup WiFi on gateway</span></li>
+<li><span class="mark"></span><span>Join home Wi-Fi</span></li>
+</ul>
+<p class="lede">Press the pair button (SW1). This page saves again when it sees the press.</p>
 <form id="f" method="post" action="/api/wifi">
 <input type="hidden" name="n" value="__N__">
 <input type="hidden" name="ssid" value="__S__">
@@ -168,8 +126,52 @@ function tick(){
   }).catch(function(){});
 }
 setInterval(tick, 800);
+tick();
 </script>
 """
+
+SAVED_PAGE = """<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Garage</title>
+<style>""" + PORTAL_STYLE + """</style>
+<main class="page">
+<h1>Garage</h1>
+<div class="pills"><span class="pill wait">Processing</span><span class="pill">Leaving garage-gw</span></div>
+<section class="card">
+<ul class="checklist">
+""" + CHECK_DONE + """
+<li class="done"><span class="mark">✓</span><span>Press pair button</span></li>
+<li class="done"><span class="mark">✓</span><span>Setup WiFi on gateway</span></li>
+<li class="active"><span class="mark"></span><span>Join home Wi-Fi</span></li>
+</ul>
+<p class="lede">Saved. Connecting to home Wi-Fi — this setup network will close.</p>
+<p class="meta"><a href="__APP__">Open the Garage app</a> when the phone leaves garage-gw.</p>
+</section>
+</main>
+<script>
+function go(){
+  location.replace("__APP__");
+}
+function wait(){
+  fetch("__ORIGIN__/manifest.webmanifest?online=1").then(function(r){
+    if(r.ok) go();
+    else setTimeout(wait, 1000);
+  }).catch(function(){ setTimeout(wait, 1000); });
+}
+setTimeout(wait, 2000);
+</script>
+"""
+
+CAPTIVE_PATHS = {
+    "/generate_204",
+    "/gen_204",
+    "/hotspot-detect.html",
+    "/library/test/success.html",
+    "/success.txt",
+    "/connecttest.txt",
+    "/ncsi.txt",
+    "/canonical.html",
+}
 
 
 def html_escape(text):
@@ -194,7 +196,12 @@ def app_origin():
 
 
 def saved_page():
-    return SAVED_PAGE.replace("__APP__", app_origin())
+    origin = app_origin()
+    return (
+        SAVED_PAGE.replace("__APP__", html_escape(origin + "/#setup?saved=1")).replace(
+            "__ORIGIN__", html_escape(origin)
+        )
+    )
 
 
 def setup_app_url():
@@ -202,7 +209,13 @@ def setup_app_url():
 
 
 def portal_home_page():
-    return PORTAL_HOME_PAGE.replace("__APP__", app_origin())
+    return PORTAL_HOME_PAGE
+
+
+def form_page(reason, nonce):
+    return FORM_PAGE.replace("__REASON__", html_escape(reason or "")).replace(
+        "__N__", html_escape(nonce or "")
+    )
 
 
 def need_sw1_page(nonce, ssid, password):
@@ -273,27 +286,64 @@ def captive_probe(path):
     clean = (path or "/").split("?")[0].rstrip("/") or "/"
     if not clean.startswith("/"):
         clean = "/" + clean
-    if clean in CAPTIVE_PROBES:
-        return CAPTIVE_PROBES[clean]
+    if clean in CAPTIVE_PATHS:
+        return True
     name = clean.rsplit("/", 1)[-1]
-    for probe, payload in CAPTIVE_PROBES.items():
+    for probe in CAPTIVE_PATHS:
         if probe.endswith("/" + name) or probe == "/" + name:
-            return payload
-    return None
+            return True
+    return False
 
 
 def captive_payload(path, user_agent=""):
-    probe = captive_probe(path)
-    if probe:
-        return probe
     ua = (user_agent or "").lower()
-    if (path or "/") in ("/", "") and (
-        "captivenetworksupport" in ua
-        or "connectivitycheck" in ua
-        or "captiveportallogin" in ua
+    if captive_probe(path) or (
+        (path or "/") in ("/", "")
+        and (
+            "captivenetworksupport" in ua
+            or "connectivitycheck" in ua
+            or "captiveportallogin" in ua
+        )
     ):
-        return ("Success", "200 OK", "text/html")
+        return (portal_home_page(), "200 OK", "text/html")
     return None
+
+
+def dns_reply(query, ip=None):
+    """Answer any A query with the SoftAP IP so captive probes hit this portal."""
+    ip = ip or AP_IP
+    if not query or len(query) < 12 or query[2] & 0x80:
+        return None
+    i = 12
+    n = len(query)
+    while i < n:
+        length = query[i]
+        if length == 0:
+            i += 1
+            break
+        if length & 0xC0:
+            i += 2
+            break
+        i += 1 + length
+    if i + 4 > n:
+        return None
+    i += 4
+    try:
+        addr = bytes(int(part) for part in ip.split("."))
+    except ValueError:
+        return None
+    if len(addr) != 4:
+        return None
+    return (
+        query[:2]
+        + b"\x81\x80"
+        + query[4:6]
+        + query[4:6]
+        + b"\x00\x00\x00\x00"
+        + query[12:i]
+        + b"\xc0\x0c\x00\x01\x00\x01\x00\x00\x00\x1e\x00\x04"
+        + addr
+    )
 
 
 def wifi_fields(fields):
@@ -418,6 +468,13 @@ def run_portal(reason="Set the home Wi-Fi"):
     http.bind(("0.0.0.0", 80))
     http.listen(2)
     http.settimeout(0.2)
+    dns = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        dns.bind(("0.0.0.0", 53))
+        dns.settimeout(0)
+    except OSError as err:
+        log("DNS bind failed: {}".format(err))
+        dns = None
 
     saved = None
     nonce = None
@@ -426,6 +483,14 @@ def run_portal(reason="Set the home Wi-Fi"):
         while saved is None:
             if _button_down():
                 sw1_ok = True
+            if dns:
+                try:
+                    packet, addr = dns.recvfrom(256)
+                    reply = dns_reply(packet)
+                    if reply:
+                        dns.sendto(reply, addr)
+                except OSError:
+                    pass
             try:
                 conn, _addr = http.accept()
             except OSError:
@@ -469,7 +534,11 @@ def run_portal(reason="Set the home Wi-Fi"):
                         )
                     )
                     if not ssid:
-                        conn.send(_json_response({"ok": False, "error": "missing_ssid"}, "400 Bad Request"))
+                        wants_html = "json" not in headers.get("content-type", "")
+                        if wants_html:
+                            conn.send(_http_response(form_page("SSID is required", nonce)))
+                        else:
+                            conn.send(_json_response({"ok": False, "error": "missing_ssid"}, "400 Bad Request"))
                         continue
                     if nonce and not sw1_ok:
                         wants_html = "json" not in headers.get("content-type", "")
@@ -483,12 +552,12 @@ def run_portal(reason="Set the home Wi-Fi"):
                     log("Saved Wi-Fi for {}".format(ssid))
                     wants_html = "json" not in headers.get("content-type", "")
                     if wants_html:
-                        conn.send(_http_redirect(setup_app_url(), saved_page()))
+                        conn.send(_http_response(saved_page()))
                     else:
                         conn.send(_json_response({"ok": True}))
                     continue
                 if path in ("/wifi", "/form"):
-                    conn.send(_http_response(FORM_PAGE % (reason, nonce or "", AP_SSID)))
+                    conn.send(_http_response(form_page(reason, nonce)))
                     continue
                 conn.send(_http_response(portal_home_page()))
             except OSError as err:
@@ -500,6 +569,16 @@ def run_portal(reason="Set the home Wi-Fi"):
                     pass
     finally:
         http.close()
+        if dns:
+            try:
+                dns.close()
+            except OSError:
+                pass
+        if saved:
+            import time
+
+            # Let the phone paint "joining home Wi-Fi" before the AP vanishes.
+            time.sleep(2)
         ap.active(False)
-        log("Setup AP off")
+        log("Setup AP off — phone should leave garage-gw")
     return saved

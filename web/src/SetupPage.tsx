@@ -6,16 +6,26 @@ import {
   postGatewayWifi,
 } from "./gatewayApi";
 import { NetworkPills, useNetworkProbe } from "./NetworkStatus";
-import { markWifiSaved, pairingWifiSaved, type StoredPairing } from "./pairingStorage";
+import { PairingChecklist } from "./PairingChecklist";
+import {
+  markAwaitingCaptive,
+  markJoinedAp,
+  markLeftSetup,
+  markPairPressed,
+  markWifiSaved,
+  pairingWifiSaved,
+  type StoredPairing,
+} from "./pairingStorage";
 import { precacheAppShell } from "./precache";
 import { parseSetupHash } from "./setupHash";
 
 type Props = {
   pairing: StoredPairing | null;
   onCancel: () => void;
+  onPairingChange?: (pairing: StoredPairing) => void;
 };
 
-export function SetupPage({ pairing, onCancel }: Props) {
+export function SetupPage({ pairing, onCancel, onPairingChange }: Props) {
   const { status, online, onGateway, probe } = useNetworkProbe(pairing?.nonce);
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
@@ -23,39 +33,93 @@ export function SetupPage({ pairing, onCancel }: Props) {
   const [saved, setSaved] = useState(
     () => parseSetupHash().wifiSaved || pairing?.wifiSaved === true || pairingWifiSaved(),
   );
+  const [joinedAp, setJoinedAp] = useState(() => Boolean(pairing?.joinedAp));
+  const [pairPressed, setPairPressed] = useState(() => Boolean(pairing?.pairPressed));
   const [error, setError] = useState<string | null>(null);
   const [useFormPost, setUseFormPost] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const advanced = useRef(false);
   const remaining = useCountdown(pairing?.expiresAt ?? null);
 
   useEffect(() => {
     void precacheAppShell();
-  }, []);
+    const next = markAwaitingCaptive();
+    if (next) {
+      onPairingChange?.(next);
+    }
+  }, [onPairingChange]);
 
   useEffect(() => {
     if (parseSetupHash().wifiSaved) {
-      markWifiSaved();
+      const next = markWifiSaved();
+      setSaved(true);
+      setJoinedAp(true);
+      setPairPressed(true);
+      if (next) {
+        onPairingChange?.(next);
+      }
+    }
+  }, [onPairingChange]);
+
+  useEffect(() => {
+    if (pairing?.wifiSaved) {
       setSaved(true);
     }
-  }, []);
+    if (pairing?.joinedAp) {
+      setJoinedAp(true);
+    }
+    if (pairing?.pairPressed) {
+      setPairPressed(true);
+    }
+  }, [pairing?.joinedAp, pairing?.pairPressed, pairing?.wifiSaved]);
 
-  const onGarageGw = saved || onGateway;
+  useEffect(() => {
+    if (!onGateway) {
+      return;
+    }
+    setJoinedAp(true);
+    const next = markJoinedAp();
+    if (next) {
+      onPairingChange?.(next);
+    }
+  }, [onGateway, onPairingChange]);
+
+  useEffect(() => {
+    if (!status?.sw1) {
+      return;
+    }
+    setPairPressed(true);
+    setJoinedAp(true);
+    const next = markPairPressed();
+    if (next) {
+      onPairingChange?.(next);
+    }
+  }, [onPairingChange, status?.sw1]);
+
   const nonce = pairing?.nonce ?? "";
   const ready = Boolean(pairing?.nonce);
-  const pressedPair = Boolean(status?.sw1) || saved;
+  const onGarageGw = saved || joinedAp || onGateway;
+  const pressedPair = saved || pairPressed || Boolean(status?.sw1);
   const backOnline = saved && online === true;
   const showForm = onGateway && !saved && remaining > 0 && pressedPair;
   const gatewaySetupHref = nonce ? `${GATEWAY_ORIGIN}/?n=${encodeURIComponent(nonce)}` : GATEWAY_ORIGIN;
-  const showOpenGateway = !saved && remaining > 0 && !onGateway;
+  const showOpenGateway = !saved && remaining > 0 && !onGarageGw;
 
-  const steps = [
-    { done: ready, label: "Ready to start pairing" },
-    { done: onGarageGw, label: `Connect to WiFi called ${GATEWAY_AP_SSID}` },
-    { done: pressedPair, label: "Press pair button" },
-    { done: saved, label: "Setup WiFi on gateway" },
-    { done: backOnline, label: "Back online" },
-  ];
-  const currentIndex = steps.findIndex((step) => !step.done);
+  useEffect(() => {
+    if (advanced.current || !saved || online !== true) {
+      return;
+    }
+    advanced.current = true;
+    onCancel();
+  }, [onCancel, online, saved]);
+
+  const currentIndex = [
+    ready,
+    onGarageGw,
+    pressedPair,
+    saved,
+    backOnline,
+  ].findIndex((step) => !step);
 
   async function saveWifi(event: React.FormEvent) {
     event.preventDefault();
@@ -71,8 +135,13 @@ export function SetupPage({ pairing, onCancel }: Props) {
       nonce,
     });
     if (result.ok) {
-      markWifiSaved();
+      const next = markWifiSaved();
       setSaved(true);
+      setJoinedAp(true);
+      setPairPressed(true);
+      if (next) {
+        onPairingChange?.(next);
+      }
       setBusy(false);
       return;
     }
@@ -95,25 +164,28 @@ export function SetupPage({ pairing, onCancel }: Props) {
     <main className="page">
       <header className="top">
         <h1>Garage</h1>
-        <button type="button" className="link" onClick={onCancel}>
+        <button
+          type="button"
+          className="link"
+          onClick={() => {
+            if (!saved) {
+              markLeftSetup();
+            }
+            onCancel();
+          }}
+        >
           Back
         </button>
       </header>
       <NetworkPills onGateway={onGateway} online={online} />
       <section className="card">
-        <ul className="checklist">
-          {steps.map((step, index) => {
-            const current = index === currentIndex;
-            return (
-              <li key={step.label} className={step.done ? "done" : current ? "active" : "todo"}>
-                <span className="mark" aria-hidden="true">
-                  {step.done ? "✓" : ""}
-                </span>
-                <span>{step.label}</span>
-              </li>
-            );
-          })}
-        </ul>
+        <PairingChecklist
+          ready={ready}
+          joinedAp={onGarageGw}
+          pairPressed={pressedPair}
+          wifiSaved={saved}
+          online={online}
+        />
         {pairing && remaining > 0 ? (
           <p className="meta">{formatRemaining(remaining)} left.</p>
         ) : pairing ? (
@@ -178,11 +250,22 @@ export function SetupPage({ pairing, onCancel }: Props) {
           <>
             <p className="meta">
               Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>,
-              password <strong>{GATEWAY_AP_PASSWORD}</strong>. This HTTPS tab
-              cannot talk to the gateway. After you join, open the setup page
-              on the board.
+              password <strong>{GATEWAY_AP_PASSWORD}</strong>. The phone should
+              open a Garage login sheet — press SW1 and save home Wi-Fi there.
+              This HTTPS tab cannot talk to the gateway. If the sheet does not
+              appear, open the setup page on the board.
             </p>
-            <a className="primary" href={gatewaySetupHref}>
+            <a
+              className="primary"
+              href={gatewaySetupHref}
+              onClick={() => {
+                const next = markJoinedAp();
+                setJoinedAp(true);
+                if (next) {
+                  onPairingChange?.(next);
+                }
+              }}
+            >
               Open gateway setup
             </a>
           </>

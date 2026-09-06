@@ -7,7 +7,13 @@ import App from "./App.tsx";
 import { SetupPage } from "./SetupPage.tsx";
 import { fetchGatewayStatus, fetchInternetReachable } from "./gatewayApi.ts";
 import { precacheAppShell } from "./precache.ts";
-import { markWifiSaved, readPairing, type StoredPairing } from "./pairingStorage.ts";
+import {
+  markSetupHidden,
+  markWifiSaved,
+  readPairing,
+  resumeAfterCaptive,
+  type StoredPairing,
+} from "./pairingStorage.ts";
 import { parseSetupHash } from "./setupHash.ts";
 import "./index.css";
 
@@ -48,12 +54,11 @@ function Root() {
       if (next) {
         setStayInApp(false);
         if (parseSetupHash().wifiSaved) {
-          markWifiSaved();
+          const stored = markWifiSaved();
+          setPairing(stored ?? readPairing());
+        } else {
+          setPairing((current) => readPairing() ?? current);
         }
-        setPairing((current) => {
-          const stored = readPairing();
-          return stored ?? current;
-        });
       }
     };
     window.addEventListener("hashchange", onHash);
@@ -72,6 +77,13 @@ function Root() {
       }
       setOnGateway(status !== null);
       setOnline(reachable);
+      const resumed = resumeAfterCaptive({
+        online: reachable,
+        onGateway: status !== null,
+      });
+      if (resumed) {
+        setPairing(resumed);
+      }
       if (status !== null) {
         setStayInApp(false);
       }
@@ -93,6 +105,44 @@ function Root() {
     };
   }, []);
 
+  useEffect(() => {
+    const onHide = () => {
+      markSetupHidden();
+    };
+    const onShow = () => {
+      void (async () => {
+        const [status, reachable] = await Promise.all([
+          fetchGatewayStatus(readPairing()?.nonce),
+          fetchInternetReachable(),
+        ]);
+        const resumed = resumeAfterCaptive({
+          online: reachable,
+          onGateway: status !== null,
+        });
+        setOnGateway(status !== null);
+        setOnline(reachable);
+        if (resumed) {
+          setPairing(resumed);
+        }
+      })();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        onHide();
+      } else {
+        onShow();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("pageshow", onShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("pageshow", onShow);
+    };
+  }, []);
+
   const startSetup = (next?: StoredPairing) => {
     if (next) {
       setPairing(next);
@@ -104,15 +154,20 @@ function Root() {
     setHashSetup(true);
   };
 
+  const wifiSaved = pairing?.wifiSaved === true;
+  const backInApp = wifiSaved && online === true;
   const setup =
-    !stayInApp && (hashSetup || onGateway || (pairing !== null && online !== true));
+    !stayInApp &&
+    !backInApp &&
+    (hashSetup || onGateway || (pairing !== null && online !== true));
 
   if (setup) {
     return (
       <SetupPage
         pairing={pairing}
+        onPairingChange={setPairing}
         onCancel={() => {
-          if (onGateway) {
+          if (onGateway && !wifiSaved) {
             return;
           }
           setStayInApp(true);

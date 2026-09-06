@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gateway"))
 
 from button_handler import held_long_enough
-from provision import captive_payload, captive_probe, need_sw1_page, parse_body, parse_form_body, parse_request_target, portal_home_page, saved_page, url_unquote, wifi_fields
+from provision import captive_payload, captive_probe, dns_reply, form_page, need_sw1_page, parse_body, parse_form_body, parse_request_target, portal_home_page, saved_page, url_unquote, wifi_fields
 from wifi_store import clear_pair_nonce, clear_wifi, load_wifi, peek_pair_nonce, save_wifi
 
 
@@ -40,39 +40,65 @@ class FormParseTests(unittest.TestCase):
         form = parse_body(b"ssid=cafe&password=x&n=deadbeef", "application/x-www-form-urlencoded")
         self.assertEqual(wifi_fields(form), ("cafe", "x", "deadbeef"))
 
-    def test_captive_probes_look_online(self):
+    def test_captive_probes_open_the_garage_sheet(self):
         # given phone captive-portal checks
         # when they hit the setup AP
-        # then they get a success body so the OS does not steal the Garage tab
-        self.assertEqual(captive_probe("/generate_204")[1], "204 No Content")
-        self.assertEqual(captive_probe("/hotspot-detect.html")[0], "Success")
-        self.assertIsNone(captive_probe("/api/status"))
-        self.assertEqual(
-            captive_payload("/", "CaptiveNetworkSupport-386.0.1 wispr")[0],
-            "Success",
-        )
+        # then they get the Garage sheet instead of a Success dismiss
+        self.assertTrue(captive_probe("/generate_204"))
+        self.assertTrue(captive_probe("/hotspot-detect.html"))
+        self.assertFalse(captive_probe("/api/status"))
+        html = captive_payload("/", "CaptiveNetworkSupport-386.0.1 wispr")[0]
+        self.assertIn("Press the pair button", html)
+        self.assertIn("garage-gw connected", html)
+        self.assertIn("Processing", html)
         self.assertIsNone(captive_payload("/", "Mozilla/5.0"))
 
-    def test_saved_page_redirects_when_online(self):
+    def test_saved_page_shows_joining_home_wifi(self):
         # given Wi-Fi credentials were posted from the form
         # when the saved page is rendered
-        # then it probes garage-gw and the app URL so it can leave this tab
+        # then it looks like the app and says the SoftAP will close
         html = saved_page()
-        self.assertIn("Saved. Opening the Garage app.", html)
-        self.assertIn("location.replace", html)
-        self.assertIn("garage-opener-rose.vercel.app", html)
-        self.assertIn("/#setup?saved=1", html)
+        self.assertIn("Connecting to home Wi-Fi", html)
+        self.assertIn("setup network will close", html)
+        self.assertIn("Join home Wi-Fi", html)
+        self.assertIn("Processing", html)
+        self.assertIn("#setup?saved=1", html)
+        self.assertIn("Open the Garage app", html)
         self.assertNotIn("__APP__", html)
+        self.assertNotIn("__ORIGIN__", html)
 
     def test_portal_home_continues_after_sw1(self):
-        # given the phone opened the setup IP
+        # given the phone opened the captive sheet
         # when the portal home page is rendered
         # then SW1 sends the browser to the Wi-Fi form
         html = portal_home_page()
         self.assertIn("Press the pair button", html)
         self.assertIn("/wifi", html)
-        self.assertIn("garage-opener-rose.vercel.app", html)
+        self.assertIn("Continue to Wi-Fi setup", html)
+        self.assertIn("Processing", html)
+        self.assertIn("Press pair button", html)
         self.assertNotIn("Close this Wi-Fi login sheet", html)
+
+    def test_wifi_form_matches_app_checklist(self):
+        # given SW1 already happened
+        # when the Wi-Fi form is shown
+        # then it keeps the Garage look
+        html = form_page("Set the home Wi-Fi", "abc")
+        self.assertIn('name="n" value="abc"', html)
+        self.assertIn("Home SSID", html)
+        self.assertIn("Save and connect", html)
+
+    def test_dns_reply_points_at_softap(self):
+        # given a DNS A query on the setup AP
+        # when it is answered
+        # then the phone is sent to 192.168.4.1
+        query = (
+            b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00"
+            b"\x01a\x03com\x00\x00\x01\x00\x01"
+        )
+        reply = dns_reply(query)
+        self.assertTrue(reply.startswith(b"\x12\x34\x81\x80"))
+        self.assertTrue(reply.endswith(b"\xc0\xa8\x04\x01"))
 
     def test_need_sw1_page_keeps_credentials(self):
         # given a form post before SW1

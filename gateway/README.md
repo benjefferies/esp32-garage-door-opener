@@ -9,17 +9,15 @@ Sends ESP-NOW toggles to the opener from **SW1** or from **HiveMQ Cloud** (`gara
 
 ## Wi-Fi setup (offline web app)
 
-If STA join fails (or nothing is saved), the gateway starts a local AP. Pairing is meant to stay in the Garage web app:
+If STA join fails (or nothing is saved), the gateway starts a local AP. SoftAP **hijacks DNS** so iOS/Android open a captive sheet that looks like the Garage app:
 
 1. Sign in online and tap **Start pairing** (the service worker caches that tab)
 2. In the phone Wi-Fi settings, join **`garage-gw`** (password **`garage-gw`**)
-3. Open the same browser tab again — it should still render offline
-4. Press **SW1**, then the app `POST`s home SSID/password to `http://192.168.4.1/api/wifi`
-5. Rejoin home Wi-Fi or cellular. If the browser landed on the gateway **Saved** page, that tab probes the internet and opens the Garage app when you are back online. The app waits while the gateway joins home Wi-Fi and confirms the nonce. That confirm can take a minute; the pairing window stays open for 15 minutes.
+3. The captive sheet shows the same checklist and a **Processing** pill. Press **SW1**, then enter home SSID/password on that sheet
+4. After save, the sheet says it is joining home Wi-Fi, then SoftAP turns off so the phone is forced off `garage-gw`
+5. The sheet opens the Garage app at `#setup?saved=1`. The checklist stays in `localStorage` so **Back online** is already checked. Pairing confirm can take a minute; the window stays open for 15 minutes
 
-`GET /api/status` and `POST /api/wifi` send CORS headers so the cached HTTPS app can call the SoftAP. If the browser blocks that mixed-content `fetch`, the same form submits as a normal POST to `http://192.168.4.1`.
-
-The setup AP does **not** hijack DNS. DHCP points DNS at `8.8.8.8` so iOS/Android should not open a **192.168.4.1** Wi-Fi login sheet. Captive probes (and the iOS CNA user-agent on `/`) still return Success so a sheet that does appear can dismiss itself. Pairing stays in the Garage app, which talks to `http://192.168.4.1` by IP.
+If the login sheet does not appear, **Open gateway setup** in the app navigates to `http://192.168.4.1/?n=…` and carries the pairing nonce. HTTPS pages cannot `fetch` that origin (mixed content). A service worker can keep the app looking “online” on `garage-gw` even when the radio is down; that is not a ping.
 
 Hold **SW1** for more than 3 seconds after it has been released to forget `wifi.json` and reboot into the setup AP. GPIO9 is also BOOT: USB serial reset often leaves it low. A button that is already down at boot or when the main loop starts is ignored — release, then hold 3s if you really want to clear Wi-Fi. The first release after that does not toggle.
 
