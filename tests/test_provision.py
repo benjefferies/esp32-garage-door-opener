@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gateway"))
 
 from button_handler import held_long_enough
-from provision import captive_probe, parse_body, parse_form_body, parse_request_target, url_unquote, wifi_fields
+from provision import captive_probe, need_sw1_page, parse_body, parse_form_body, parse_request_target, url_unquote, wifi_fields
 from wifi_store import clear_pair_nonce, clear_wifi, load_wifi, peek_pair_nonce, save_wifi
 
 
@@ -47,6 +47,15 @@ class FormParseTests(unittest.TestCase):
         self.assertEqual(captive_probe("/generate_204")[1], "204 No Content")
         self.assertEqual(captive_probe("/hotspot-detect.html")[0], "Success")
         self.assertIsNone(captive_probe("/api/status"))
+
+    def test_need_sw1_page_keeps_credentials(self):
+        # given a form post before SW1
+        # when the wait page is rendered
+        # then the ssid is echoed for a retry
+        html = need_sw1_page("abc", 'cafe"net', "x")
+        self.assertIn("Press the pair button", html)
+        self.assertIn("cafe&quot;net", html)
+        self.assertIn('value="abc"', html)
 
 
 class HoldResetTests(unittest.TestCase):
