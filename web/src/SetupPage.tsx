@@ -65,9 +65,18 @@ export function SetupPage({ onCancel }: Props) {
   const leftInternet = online === false;
   const onGarageGw = onGateway || (leftInternet && !saved);
   const nonce = pairing?.nonce ?? "";
-  const pairingStarted = Boolean(nonce);
-  const sw1 = Boolean(status?.sw1);
-  const showForm = onGarageGw && !saved && remaining > 0;
+  const ready = Boolean(nonce) && offlineReady;
+  const pressedPair = Boolean(status?.sw1) || saved;
+  const backOnline = saved && online === true;
+  const showForm = onGarageGw && !saved && remaining > 0 && (pressedPair || !onGateway);
+
+  const steps = [
+    { done: ready, label: "Ready to start pairing" },
+    { done: onGarageGw, label: `Connect to WiFi called ${GATEWAY_AP_SSID}` },
+    { done: pressedPair, label: "Press pair button" },
+    { done: backOnline, label: "Back online" },
+  ];
+  const currentIndex = steps.findIndex((step) => !step.done);
 
   async function saveWifi(event: React.FormEvent) {
     event.preventDefault();
@@ -93,28 +102,9 @@ export function SetupPage({ onCancel }: Props) {
       queueMicrotask(() => formRef.current?.submit());
       return;
     }
-    setError(result.error === "press_sw1" ? "Press SW1 on the gateway, then save again." : (result.error ?? "Save failed"));
+    setError(result.error === "press_sw1" ? "Press the pair button, then save again." : (result.error ?? "Save failed"));
     setBusy(false);
   }
-
-  const steps = [
-    { done: pairingStarted, label: "Pairing started on this phone" },
-    { done: offlineReady, label: "Offline copy of this tab is ready" },
-    {
-      done: onGarageGw,
-      label: onGateway
-        ? `Connected to ${GATEWAY_AP_SSID}`
-        : leftInternet
-          ? `No internet — join ${GATEWAY_AP_SSID} if you have not already`
-          : `Join ${GATEWAY_AP_SSID} in Wi-Fi settings, then return here`,
-    },
-    { done: sw1, label: "Press SW1 on the gateway" },
-    { done: saved, label: "Save home Wi-Fi to the gateway" },
-    {
-      done: saved && online === true,
-      label: saved ? "Rejoin home Wi-Fi or cellular" : "Back on the internet",
-    },
-  ];
 
   return (
     <main className="page">
@@ -125,30 +115,28 @@ export function SetupPage({ onCancel }: Props) {
         </button>
       </header>
       <section className="card">
-        <p className="lede">
-          The browser cannot read the Wi-Fi name. This list watches for the
-          gateway at {GATEWAY_ORIGIN} and whether this site can reach the
-          internet again.
-        </p>
         <ul className="checklist">
-          {steps.map((step) => (
-            <li key={step.label} className={step.done ? "done" : "todo"}>
-              <span className="mark" aria-hidden="true">
-                {step.done ? "✓" : ""}
-              </span>
-              <span>{step.label}</span>
-            </li>
-          ))}
+          {steps.map((step, index) => {
+            const current = index === currentIndex;
+            return (
+              <li key={step.label} className={step.done ? "done" : current ? "active" : "todo"}>
+                <span className="mark" aria-hidden="true">
+                  {step.done ? "✓" : ""}
+                </span>
+                <span>{step.label}</span>
+              </li>
+            );
+          })}
         </ul>
         {remaining > 0 ? (
-          <p className="meta">{formatRemaining(remaining)} left to finish pairing.</p>
+          <p className="meta">{formatRemaining(remaining)} left.</p>
         ) : (
-          <p className="error">Pairing window expired. Go back online and start again.</p>
+          <p className="error">Pairing expired. Go back online and start again.</p>
         )}
         {error ? <p className="error">{error}</p> : null}
         {saved ? (
-          <button type="button" className="primary" onClick={onCancel} disabled={online !== true}>
-            {online === true ? "I'm back on the internet" : "Waiting for internet…"}
+          <button type="button" className="primary" onClick={onCancel} disabled={!backOnline}>
+            {backOnline ? "Continue" : "Waiting for internet…"}
           </button>
         ) : showForm ? (
           <form
@@ -178,16 +166,18 @@ export function SetupPage({ onCancel }: Props) {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
-            <button className="primary" disabled={busy || remaining <= 0 || (onGateway && !sw1)} type="submit">
+            <button className="primary" disabled={busy || remaining <= 0 || (onGateway && !pressedPair)} type="submit">
               {busy ? "Sending…" : "Save to gateway"}
             </button>
           </form>
-        ) : (
+        ) : currentIndex === 1 ? (
           <p className="meta">
-            Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong> (no
-            password), then come back to this tab.
+            Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>, then
+            return to this tab.
           </p>
-        )}
+        ) : currentIndex === 2 ? (
+          <p className="meta">Press the pair button (SW1) on the gateway.</p>
+        ) : null}
       </section>
     </main>
   );
