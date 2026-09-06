@@ -1,4 +1,5 @@
 const KEY = "garage.pairing";
+export const PAIR_WINDOW_MS = 15 * 60 * 1000;
 
 export type StoredPairing = {
   nonce: string;
@@ -24,6 +25,19 @@ export function readPairing(): StoredPairing | null {
 
 export function writePairing(pairing: StoredPairing): void {
   localStorage.setItem(KEY, JSON.stringify(pairing));
+}
+
+export function saveStartedPairing(input: { nonce?: string; expiresAt?: number }): StoredPairing {
+  if (!input.nonce) {
+    throw new Error("Pairing did not return a nonce. Deploy Convex and try again.");
+  }
+  const serverExpiry = typeof input.expiresAt === "number" ? input.expiresAt : 0;
+  const pairing = {
+    nonce: input.nonce,
+    expiresAt: Math.max(serverExpiry, Date.now() + PAIR_WINDOW_MS),
+  };
+  writePairing(pairing);
+  return pairing;
 }
 
 export function clearPairing(): void {

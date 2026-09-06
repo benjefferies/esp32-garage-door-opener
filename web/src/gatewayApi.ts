@@ -1,5 +1,6 @@
 export const GATEWAY_ORIGIN = "http://192.168.4.1";
 export const GATEWAY_AP_SSID = "garage-gw";
+export const GATEWAY_AP_PASSWORD = "garage-gw";
 
 export type GatewayStatus = {
   ok: boolean;

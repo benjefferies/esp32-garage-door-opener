@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  GATEWAY_AP_PASSWORD,
   GATEWAY_AP_SSID,
   GATEWAY_ORIGIN,
   fetchGatewayStatus,
@@ -7,15 +8,15 @@ import {
   postGatewayWifi,
   type GatewayStatus,
 } from "./gatewayApi";
-import { readPairing } from "./pairingStorage";
+import { type StoredPairing } from "./pairingStorage";
 import { precacheAppShell } from "./precache";
 
 type Props = {
+  pairing: StoredPairing | null;
   onCancel: () => void;
 };
 
-export function SetupPage({ onCancel }: Props) {
-  const pairing = readPairing();
+export function SetupPage({ pairing, onCancel }: Props) {
   const [status, setStatus] = useState<GatewayStatus | null>(null);
   const [online, setOnline] = useState<boolean | null>(null);
   const [ssid, setSsid] = useState("");
@@ -24,12 +25,11 @@ export function SetupPage({ onCancel }: Props) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useFormPost, setUseFormPost] = useState(false);
-  const [offlineReady, setOfflineReady] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const remaining = useCountdown(pairing?.expiresAt ?? null);
 
   useEffect(() => {
-    void precacheAppShell().then(() => setOfflineReady(true));
+    void precacheAppShell();
   }, []);
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export function SetupPage({ onCancel }: Props) {
   const leftInternet = online === false;
   const onGarageGw = onGateway || (leftInternet && !saved);
   const nonce = pairing?.nonce ?? "";
-  const ready = Boolean(nonce) && offlineReady;
+  const ready = Boolean(pairing?.nonce);
   const pressedPair = Boolean(status?.sw1) || saved;
   const backOnline = saved && online === true;
   const showForm = onGarageGw && !saved && remaining > 0 && (pressedPair || !onGateway);
@@ -128,10 +128,12 @@ export function SetupPage({ onCancel }: Props) {
             );
           })}
         </ul>
-        {remaining > 0 ? (
+        {pairing && remaining > 0 ? (
           <p className="meta">{formatRemaining(remaining)} left.</p>
-        ) : (
+        ) : pairing ? (
           <p className="error">Pairing expired. Go back online and start again.</p>
+        ) : (
+          <p className="error">Go back and tap Start pairing again.</p>
         )}
         {error ? <p className="error">{error}</p> : null}
         {saved ? (
@@ -172,8 +174,9 @@ export function SetupPage({ onCancel }: Props) {
           </form>
         ) : currentIndex === 1 ? (
           <p className="meta">
-            Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>, then
-            return to this tab.
+            Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>,
+            password <strong>{GATEWAY_AP_PASSWORD}</strong>. If a Wi-Fi login
+            page opens, close it and come back to this Garage tab.
           </p>
         ) : currentIndex === 2 ? (
           <p className="meta">Press the pair button (SW1) on the gateway.</p>

@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gateway"))
 
 from button_handler import held_long_enough
-from provision import parse_body, parse_form_body, parse_request_target, url_unquote, wifi_fields
+from provision import captive_probe, parse_body, parse_form_body, parse_request_target, url_unquote, wifi_fields
 from wifi_store import clear_pair_nonce, clear_wifi, load_wifi, peek_pair_nonce, save_wifi
 
 
@@ -39,6 +39,14 @@ class FormParseTests(unittest.TestCase):
         self.assertEqual(wifi_fields(fields), ("cafe", "x", "deadbeef"))
         form = parse_body(b"ssid=cafe&password=x&n=deadbeef", "application/x-www-form-urlencoded")
         self.assertEqual(wifi_fields(form), ("cafe", "x", "deadbeef"))
+
+    def test_captive_probes_look_online(self):
+        # given phone captive-portal checks
+        # when they hit the setup AP
+        # then they get a success body so the OS does not steal the Garage tab
+        self.assertEqual(captive_probe("/generate_204")[1], "204 No Content")
+        self.assertEqual(captive_probe("/hotspot-detect.html")[0], "Success")
+        self.assertIsNone(captive_probe("/api/status"))
 
 
 class HoldResetTests(unittest.TestCase):
