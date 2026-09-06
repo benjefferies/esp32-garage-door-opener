@@ -3,16 +3,21 @@ Configuration settings for the ESP32-NOW Garage Door Opener
 """
 
 # Network settings
+# Must match the home AP channel once the gateway joins Wi-Fi
 WIFI_CHANNEL = 6
-BROADCAST_ADDRESS = b'\xff\xff\xff\xff\xff\xff'
+BROADCAST_ADDRESS = b"\xff\xff\xff\xff\xff\xff"
 
 # Hardware settings
-MOSFET_PIN = 5  # GPIO pin for LED
-GARAGE_DOOR_PULSE_MS = 500  # Duration of MOSFET pulse in milliseconds
+# OC1 pin 1 (anode) is GPIO7; cathode to GND (drive high to close the door contacts)
+OCTOCUPLER_PIN = 7
+GARAGE_DOOR_PULSE_MS = 2000
+
+# Reed header: magnet present shorts GPIO3 to GND
+REED_PIN = 3
 
 # Timing settings
 LISTEN_TIME_MS = 250
 SLEEP_TIME_MS = 250
 
 # Message handling settings
-MAX_RECENT_IDS = 5 
+MAX_RECENT_IDS = 5
