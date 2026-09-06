@@ -18,6 +18,7 @@ WIFI_PATH = "wifi.json"
 AP_SSID = "garage-gw"
 AP_PASSWORD = "garage-gw"  # WPA2; iPhones often refuse an open ESP32 AP
 AP_IP = "192.168.4.1"
+AP_DNS = "8.8.8.8"  # Do not point DHCP DNS at the AP or iOS opens a login sheet
 APP_URL = "https://garage-opener-rose.vercel.app"
 CLEAR_WIFI_HOLD_S = 3
 
@@ -35,6 +36,7 @@ MQTT_TOPIC_STATE = "garage/opener/state"
 MQTT_TOPIC_ACK = "garage/opener/ack"
 MQTT_TOPIC_STATUS = "garage/opener/gateway"
 MQTT_TOPIC_PAIR_ACK = "garage/opener/pair/ack"
+MQTT_HEARTBEAT_S = 20
 PAIR_WINDOW_S = 60
 PAIR_CONFIRM_RETRY_S = 10
 PAIR_CONFIRM_GIVE_UP_S = 15 * 60

@@ -6,7 +6,7 @@ import {
   type GatewayStatus,
 } from "./gatewayApi";
 
-export function useNetworkProbe() {
+export function useNetworkProbe(nonce?: string | null) {
   const [status, setStatus] = useState<GatewayStatus | null>(null);
   const [online, setOnline] = useState<boolean | null>(null);
 
@@ -14,7 +14,7 @@ export function useNetworkProbe() {
     let cancelled = false;
     const poll = async () => {
       const [nextStatus, nextOnline] = await Promise.all([
-        fetchGatewayStatus(),
+        fetchGatewayStatus(nonce),
         fetchInternetReachable(),
       ]);
       if (!cancelled) {
@@ -37,7 +37,7 @@ export function useNetworkProbe() {
       document.removeEventListener("visibilitychange", onWake);
       window.removeEventListener("focus", onWake);
     };
-  }, []);
+  }, [nonce]);
 
   return { status, online, onGateway: status !== null };
 }

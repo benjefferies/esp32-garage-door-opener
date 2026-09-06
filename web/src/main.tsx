@@ -64,7 +64,7 @@ function Root() {
     let cancelled = false;
     const poll = async () => {
       const [status, reachable] = await Promise.all([
-        fetchGatewayStatus(),
+        fetchGatewayStatus(readPairing()?.nonce),
         fetchInternetReachable(),
       ]);
       if (cancelled) {

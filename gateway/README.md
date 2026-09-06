@@ -19,7 +19,7 @@ If STA join fails (or nothing is saved), the gateway starts a local AP. Pairing 
 
 `GET /api/status` and `POST /api/wifi` send CORS headers so the cached HTTPS app can call the SoftAP. If the browser blocks that mixed-content `fetch`, the same form submits as a normal POST to `http://192.168.4.1`.
 
-Phone captive-portal checks get a success response so iOS/Android should not steal the Garage tab. If a login sheet still opens, close it and return to the app. **http://192.168.4.1** only tells you to go back; the form is at `/wifi`.
+The setup AP does **not** hijack DNS. DHCP points DNS at `8.8.8.8` so iOS/Android should not open a **192.168.4.1** Wi-Fi login sheet. Captive probes (and the iOS CNA user-agent on `/`) still return Success so a sheet that does appear can dismiss itself. Pairing stays in the Garage app, which talks to `http://192.168.4.1` by IP.
 
 Hold **SW1** for more than 3 seconds at any time to forget `wifi.json` and reboot into the setup AP. The same hold during `Initializing WiFi...` also clears credentials before the first STA attempt.
 
@@ -47,7 +47,7 @@ Do not commit `wifi.json` or `secrets.py`.
 | `garage/opener/pair/ack` | gateway → HiveMQ | pairing nonce after SW1 |
 | `garage/opener/state` | gateway → HiveMQ (retained) | `open` / `closed` |
 | `garage/opener/ack` | gateway → HiveMQ | `ack:<id>` |
-| `garage/opener/gateway` | last will | `online` / `offline` |
+| `garage/opener/gateway` | gateway → HiveMQ (retained) | `hb` every 20s; last will `offline` |
 
 The HiveMQ `gateway` user must be allowed to **publish** `garage/opener/pair/ack`. If it is subscribe-only, set `CONVEX_SITE_URL` and `DOOR_WEBHOOK_SECRET` so SW1 can POST `/api/pair` instead.
 

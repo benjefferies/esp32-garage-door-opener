@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gateway"))
 
 from button_handler import held_long_enough
-from provision import captive_probe, need_sw1_page, parse_body, parse_form_body, parse_request_target, saved_page, url_unquote, wifi_fields
+from provision import captive_payload, captive_probe, need_sw1_page, parse_body, parse_form_body, parse_request_target, portal_home_page, saved_page, url_unquote, wifi_fields
 from wifi_store import clear_pair_nonce, clear_wifi, load_wifi, peek_pair_nonce, save_wifi
 
 
@@ -47,17 +47,32 @@ class FormParseTests(unittest.TestCase):
         self.assertEqual(captive_probe("/generate_204")[1], "204 No Content")
         self.assertEqual(captive_probe("/hotspot-detect.html")[0], "Success")
         self.assertIsNone(captive_probe("/api/status"))
+        self.assertEqual(
+            captive_payload("/", "CaptiveNetworkSupport-386.0.1 wispr")[0],
+            "Success",
+        )
+        self.assertIsNone(captive_payload("/", "Mozilla/5.0"))
 
     def test_saved_page_redirects_when_online(self):
         # given Wi-Fi credentials were posted from the form
         # when the saved page is rendered
         # then it probes garage-gw and the app URL so it can leave this tab
         html = saved_page()
-        self.assertIn("Saved. Rejoin home Wi-Fi", html)
-        self.assertIn("/api/status", html)
+        self.assertIn("Saved. Opening the Garage app.", html)
+        self.assertIn("location.replace", html)
         self.assertIn("garage-opener-rose.vercel.app", html)
         self.assertIn("/#setup?saved=1", html)
         self.assertNotIn("__APP__", html)
+
+    def test_portal_home_continues_after_sw1(self):
+        # given the phone opened the setup IP
+        # when the portal home page is rendered
+        # then SW1 sends the browser to the Wi-Fi form
+        html = portal_home_page()
+        self.assertIn("Press the pair button", html)
+        self.assertIn("/wifi", html)
+        self.assertIn("garage-opener-rose.vercel.app", html)
+        self.assertNotIn("Close this Wi-Fi login sheet", html)
 
     def test_need_sw1_page_keeps_credentials(self):
         # given a form post before SW1
@@ -98,6 +113,16 @@ class WifiStoreTests(unittest.TestCase):
             self.assertEqual(load_wifi(path), ("cafe", "hidden"))
             clear_wifi(path)
             self.assertEqual(load_wifi(path), (None, None))
+
+    def test_portal_save_writes_wifi_json(self):
+        # given a successful SoftAP Wi-Fi post
+        # when credentials are stored immediately
+        # then a later reset can still join that network
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "wifi.json")
+            save_wifi("cafe", "hidden", pair_nonce="abc", path=path)
+            self.assertEqual(load_wifi(path), ("cafe", "hidden"))
+            self.assertEqual(peek_pair_nonce(path), "abc")
 
 
 if __name__ == "__main__":

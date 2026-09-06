@@ -57,12 +57,21 @@ export const getStatus = query({
     return {
       isOwner: true,
       pairing: null,
-      door: door ?? {
-        slug: DOOR_SLUG,
-        state: "unknown" as const,
-        gatewayOnline: false,
-        updatedAt: 0,
-      },
+      door: door
+        ? {
+            ...door,
+            gatewayOnline:
+              typeof door.lastHeartbeatAt === "number" &&
+              now - door.lastHeartbeatAt < 90_000,
+          }
+        : {
+            slug: DOOR_SLUG,
+            state: "unknown" as const,
+            gatewayOnline: false,
+            updatedAt: 0,
+            lastHeartbeatAt: 0,
+            lastStateAt: 0,
+          },
       lastCommand,
     };
   },
@@ -185,6 +194,29 @@ export const markCommand = internalMutation({
   },
 });
 
+export const recordHeartbeat = internalMutation({
+  args: { online: v.boolean() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("doors")
+      .withIndex("by_slug", (q) => q.eq("slug", DOOR_SLUG))
+      .unique();
+    const now = Date.now();
+    const fields = {
+      slug: DOOR_SLUG,
+      state: existing?.state ?? ("unknown" as const),
+      gatewayOnline: args.online,
+      updatedAt: existing?.updatedAt ?? now,
+      lastHeartbeatAt: args.online ? now : existing?.lastHeartbeatAt,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, fields);
+      return existing._id;
+    }
+    return await ctx.db.insert("doors", fields);
+  },
+});
+
 export const recordState = internalMutation({
   args: {
     state: v.union(
@@ -199,11 +231,14 @@ export const recordState = internalMutation({
       .query("doors")
       .withIndex("by_slug", (q) => q.eq("slug", DOOR_SLUG))
       .unique();
+    const now = Date.now();
     const fields = {
       slug: DOOR_SLUG,
       state: args.state,
-      gatewayOnline: args.gatewayOnline ?? existing?.gatewayOnline ?? false,
-      updatedAt: Date.now(),
+      gatewayOnline: args.gatewayOnline ?? true,
+      updatedAt: now,
+      lastStateAt: now,
+      lastHeartbeatAt: now,
     };
     if (existing) {
       await ctx.db.patch(existing._id, fields);

@@ -8,7 +8,8 @@ except ImportError:
     import json
 
 from utils import log
-from config import AP_SSID, AP_PASSWORD, AP_IP, APP_URL, WIFI_CHANNEL
+from config import AP_SSID, AP_PASSWORD, AP_IP, AP_DNS, APP_URL, WIFI_CHANNEL
+from wifi_store import save_wifi
 
 CORS = (
     "Access-Control-Allow-Origin: *\r\n"
@@ -39,15 +40,35 @@ button{margin-top:1rem;padding:.8rem 1rem;width:100%}
 <p class="note">Prefer the Garage web app on this setup network. Join <strong>%s</strong>, then open the app tab.</p>
 """
 
-RETURN_APP_PAGE = """<!doctype html>
+PORTAL_HOME_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Garage</title>
 <style>
-body{font-family:sans-serif;background:#12161c;color:#e8edf2;margin:1.5rem}
-.note{color:#9aa6b2}
+body{font-family:"IBM Plex Sans","Segoe UI",sans-serif;background:#12161c;color:#e8edf2;margin:0}
+.page{max-width:28rem;margin:0 auto;padding:2rem 1.25rem}
+.card{padding:1.25rem;border:1px solid #2a333d;border-radius:12px;background:#1a2027}
+h1{margin:0 0 1.25rem;font-weight:600;font-size:1.5rem}
+p{color:#9aa6b2;line-height:1.4}
 </style>
-<p>Close this Wi-Fi login sheet, then go back to the <strong>Garage</strong> tab.</p>
-<p class="note">Do not set Wi-Fi here. The Garage app talks to this gateway after you return.</p>
+<main class="page">
+<h1>Garage</h1>
+<section class="card">
+<p id="msg">Press the pair button (SW1) on the gateway. This page continues here — the phone login sheet cannot close itself.</p>
+</section>
+</main>
+<script>
+var APP="__APP__";
+function tick(){
+  fetch("/api/status").then(function(r){return r.json()}).then(function(j){
+    if(j.sw1) location.replace("/wifi");
+  }).catch(function(){});
+  fetch(APP+"/manifest.webmanifest?online="+Date.now(),{mode:"no-cors",cache:"no-store"}).then(function(){
+    location.replace(APP+"/#setup");
+  }).catch(function(){});
+}
+setInterval(tick, 800);
+tick();
+</script>
 """
 
 CAPTIVE_PROBES = {
@@ -83,12 +104,13 @@ p{color:#9aa6b2;line-height:1.4}
 <span id="net" class="pill wait">Checking network…</span>
 </div>
 <section class="card">
-<p>Saved. Rejoin home Wi-Fi or cellular. This page opens the Garage app when you are online.</p>
-<p id="hint">The setup network will turn off in a moment.</p>
+<p>Saved. Opening the Garage app.</p>
+<p id="hint">If this tab stays here, rejoin home Wi-Fi or cellular.</p>
 </section>
 </main>
 <script>
 var APP="__APP__";
+location.replace(APP+"/#setup?saved=1");
 function setPill(id, on, text){
   var el=document.getElementById(id);
   el.className="pill "+(on===true?"on":on===false?"off":"wait");
@@ -175,6 +197,14 @@ def saved_page():
     return SAVED_PAGE.replace("__APP__", app_origin())
 
 
+def setup_app_url():
+    return app_origin() + "/#setup?saved=1"
+
+
+def portal_home_page():
+    return PORTAL_HOME_PAGE.replace("__APP__", app_origin())
+
+
 def need_sw1_page(nonce, ssid, password):
     return (
         NEED_SW1_PAGE.replace("__N__", html_escape(nonce or ""))
@@ -252,6 +282,20 @@ def captive_probe(path):
     return None
 
 
+def captive_payload(path, user_agent=""):
+    probe = captive_probe(path)
+    if probe:
+        return probe
+    ua = (user_agent or "").lower()
+    if (path or "/") in ("/", "") and (
+        "captivenetworksupport" in ua
+        or "connectivitycheck" in ua
+        or "captiveportallogin" in ua
+    ):
+        return ("Success", "200 OK", "text/html")
+    return None
+
+
 def wifi_fields(fields):
     ssid = (fields.get("ssid") or "").strip()
     password = fields.get("password") or ""
@@ -264,6 +308,15 @@ def _http_response(body, status="200 OK", content_type="text/html; charset=utf-8
     header = (
         "HTTP/1.0 %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nConnection: close\r\n%s\r\n"
         % (status, content_type, len(payload), CORS)
+    )
+    return header.encode() + payload
+
+
+def _http_redirect(url, body):
+    payload = body if isinstance(body, bytes) else body.encode()
+    header = (
+        "HTTP/1.0 303 See Other\r\nLocation: %s\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n%s\r\n"
+        % (url, len(payload), CORS)
     )
     return header.encode() + payload
 
@@ -300,26 +353,6 @@ def _recv_request(conn):
             break
         rest += chunk
     return request_line, headers, rest[:length]
-
-
-def _dns_response(query, ip_bytes):
-    if len(query) < 12:
-        return None
-    flags = query[2:4]
-    if flags[0] & 0x78:
-        return None
-    header = query[:2] + b"\x81\x80" + query[4:6] + b"\x00\x01\x00\x00\x00\x00"
-    question = query[12:]
-    end = question.find(b"\x00")
-    if end < 0 or end + 5 > len(question):
-        return None
-    question = question[: end + 5]
-    answer = b"\xc0\x0c\x00\x01\x00\x01\x00\x00\x00\x1e\x00\x04" + ip_bytes
-    return header + question + answer
-
-
-def _ip_bytes(ip):
-    return bytes(int(part) for part in ip.split("."))
 
 
 def _button_down():
@@ -359,7 +392,7 @@ def _start_ap():
     except TypeError:
         ap.config(essid=AP_SSID, password=AP_PASSWORD)
     try:
-        ap.ifconfig((AP_IP, "255.255.255.0", AP_IP, AP_IP))
+        ap.ifconfig((AP_IP, "255.255.255.0", AP_IP, AP_DNS))
     except OSError:
         pass
     t0 = time.ticks_ms()
@@ -385,15 +418,6 @@ def run_portal(reason="Set the home Wi-Fi"):
     http.listen(2)
     http.settimeout(0.2)
 
-    dns = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    dns.settimeout(0.05)
-    try:
-        dns.bind(("0.0.0.0", 53))
-    except OSError:
-        dns.close()
-        dns = None
-
-    ip_bytes = _ip_bytes(AP_IP)
     saved = None
     nonce = None
     sw1_ok = False
@@ -401,14 +425,6 @@ def run_portal(reason="Set the home Wi-Fi"):
         while saved is None:
             if _button_down():
                 sw1_ok = True
-            if dns:
-                try:
-                    packet, addr = dns.recvfrom(256)
-                    reply = _dns_response(packet, ip_bytes)
-                    if reply:
-                        dns.sendto(reply, addr)
-                except OSError:
-                    pass
             try:
                 conn, _addr = http.accept()
             except OSError:
@@ -421,7 +437,7 @@ def run_portal(reason="Set the home Wi-Fi"):
                 if method == "OPTIONS":
                     conn.send(_http_response(b"", status="204 No Content", content_type="text/plain"))
                     continue
-                probe = captive_probe(path)
+                probe = captive_payload(path, headers.get("user-agent", ""))
                 if probe:
                     body, status, content_type = probe
                     conn.send(_http_response(body, status=status, content_type=content_type))
@@ -455,16 +471,18 @@ def run_portal(reason="Set the home Wi-Fi"):
                             conn.send(_json_response({"ok": False, "error": "press_sw1"}, "409 Conflict"))
                         continue
                     saved = (ssid, password, nonce)
+                    save_wifi(ssid, password, pair_nonce=nonce)
+                    log("Saved Wi-Fi for {}".format(ssid))
                     wants_html = "json" not in headers.get("content-type", "")
                     if wants_html:
-                        conn.send(_http_response(saved_page()))
+                        conn.send(_http_redirect(setup_app_url(), saved_page()))
                     else:
                         conn.send(_json_response({"ok": True}))
                     continue
                 if path in ("/wifi", "/form"):
                     conn.send(_http_response(FORM_PAGE % (reason, nonce or "", AP_SSID)))
                     continue
-                conn.send(_http_response(RETURN_APP_PAGE))
+                conn.send(_http_response(portal_home_page()))
             except OSError as err:
                 log("Setup HTTP error: {}".format(err))
             finally:
@@ -474,8 +492,6 @@ def run_portal(reason="Set the home Wi-Fi"):
                     pass
     finally:
         http.close()
-        if dns:
-            dns.close()
         ap.active(False)
         log("Setup AP off")
     return saved

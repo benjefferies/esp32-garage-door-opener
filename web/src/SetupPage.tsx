@@ -16,7 +16,7 @@ type Props = {
 };
 
 export function SetupPage({ pairing, onCancel }: Props) {
-  const { status, online, onGateway } = useNetworkProbe();
+  const { status, online, onGateway } = useNetworkProbe(pairing?.nonce);
   const [ssid, setSsid] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,6 +78,7 @@ export function SetupPage({ pairing, onCancel }: Props) {
     }
     if (result.unreachable) {
       markWifiSaved();
+      setSaved(true);
       setUseFormPost(true);
       setBusy(false);
       queueMicrotask(() => formRef.current?.submit());
@@ -123,11 +124,14 @@ export function SetupPage({ pairing, onCancel }: Props) {
             {backOnline ? "Continue" : "Waiting for internet…"}
           </button>
         ) : showForm ? (
+          <>
+          <iframe name="gateway-save" title="Save to gateway" hidden />
           <form
             ref={formRef}
             className="wifi-form"
             method="post"
             action={`${GATEWAY_ORIGIN}/api/wifi`}
+            target="gateway-save"
             onSubmit={useFormPost ? undefined : saveWifi}
           >
             <input type="hidden" name="n" value={nonce} />
@@ -154,6 +158,7 @@ export function SetupPage({ pairing, onCancel }: Props) {
               {busy ? "Sending…" : "Save to gateway"}
             </button>
           </form>
+          </>
         ) : currentIndex === 1 ? (
           <>
             <p className="meta">

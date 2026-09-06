@@ -21,9 +21,13 @@ export async function fetchInternetReachable(): Promise<boolean> {
   }
 }
 
-export async function fetchGatewayStatus(): Promise<GatewayStatus | null> {
+export async function fetchGatewayStatus(nonce?: string | null): Promise<GatewayStatus | null> {
   try {
-    const response = await fetch(`${GATEWAY_ORIGIN}/api/status`, {
+    const url = new URL("/api/status", GATEWAY_ORIGIN);
+    if (nonce) {
+      url.searchParams.set("n", nonce);
+    }
+    const response = await fetch(url, {
       mode: "cors",
       cache: "no-store",
     });

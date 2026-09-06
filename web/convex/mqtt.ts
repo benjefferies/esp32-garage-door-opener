@@ -7,9 +7,12 @@ import { internalAction } from "./_generated/server";
 
 const TOPIC_CMD = "garage/opener/cmd";
 const TOPIC_PAIR_ACK = "garage/opener/pair/ack";
+const TOPIC_STATE = "garage/opener/state";
+const TOPIC_STATUS = "garage/opener/gateway";
 const PAIR_WAIT_MS = 60_000;
 const LISTEN_SLICE_MS = 50_000;
 const LISTEN_RETRY_MS = 5_000;
+const WATCH_MS = 55_000;
 
 export const publishToggle = internalAction({
   args: { commandId: v.id("commands") },
@@ -160,6 +163,55 @@ export const waitForPairAck = internalAction({
         pairingId: args.pairingId,
         nonce: args.nonce,
       });
+    }
+  },
+});
+
+function parseDoorState(text: string) {
+  const value = text.trim().toLowerCase();
+  if (value === "open" || value === "closed" || value === "unknown") {
+    return value;
+  }
+  return null;
+}
+
+export const watchGateway = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    let settings: ReturnType<typeof mqttSettings>;
+    try {
+      settings = mqttSettings();
+    } catch {
+      return;
+    }
+    const mqttClient = await mqtt.connectAsync(settings.url, {
+      username: settings.username,
+      password: settings.password,
+      clientId: `convex-watch-${Date.now().toString(36)}`,
+      rejectUnauthorized: true,
+      connectTimeout: 8000,
+    });
+    try {
+      await mqttClient.subscribeAsync([TOPIC_STATUS, TOPIC_STATE]);
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => resolve(), WATCH_MS);
+        mqttClient.on("message", (topic, payload) => {
+          const text = payload.toString().trim();
+          if (topic === TOPIC_STATE) {
+            const state = parseDoorState(text);
+            if (state) {
+              void ctx.runMutation(internal.door.recordState, { state, gatewayOnline: true });
+            }
+            return;
+          }
+          if (topic === TOPIC_STATUS) {
+            const online = text.toLowerCase() !== "offline";
+            void ctx.runMutation(internal.door.recordHeartbeat, { online });
+          }
+        });
+      });
+    } finally {
+      await mqttClient.endAsync();
     }
   },
 });

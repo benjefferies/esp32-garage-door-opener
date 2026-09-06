@@ -11,6 +11,8 @@ export default defineSchema({
     ),
     gatewayOnline: v.boolean(),
     updatedAt: v.number(),
+    lastHeartbeatAt: v.optional(v.number()),
+    lastStateAt: v.optional(v.number()),
   }).index("by_slug", ["slug"]),
   commands: defineTable({
     source: v.string(),
