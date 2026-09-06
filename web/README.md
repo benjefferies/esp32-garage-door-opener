@@ -14,11 +14,31 @@ Clerk-authenticated Convex app. **Toggle garage** publishes `toggle` to HiveMQ t
 
    `VITE_CLERK_PUBLISHABLE_KEY=pk_test_...`
 
-5. Add `http://localhost:5173` and `https://marvelous-herring-626.eu-west-1.convex.site` as allowed origins / redirects in Clerk.
+5. Add these as allowed origins / redirects in Clerk:
+   - `http://localhost:5173`
+   - `https://garage-opener-rose.vercel.app`
+   - `https://marvelous-herring-626.eu-west-1.convex.site`
 
-Production URL after `npm run deploy`:
+## Vercel (frontend)
 
-https://marvelous-herring-626.eu-west-1.convex.site
+Production: https://garage-opener-rose.vercel.app
+
+The UI is a Vite SPA. Convex stays the backend. The Git repo is a monorepo, so the Vercel **Root Directory** must be `web`.
+
+```bash
+cd web
+vercel link --yes --project garage-opener
+vercel env add VITE_CONVEX_URL production --value https://marvelous-herring-626.eu-west-1.convex.cloud --yes
+vercel env add VITE_CONVEX_URL preview --value https://marvelous-herring-626.eu-west-1.convex.cloud --yes
+vercel env add VITE_CLERK_PUBLISHABLE_KEY production --value pk_test_... --yes
+vercel env add VITE_CLERK_PUBLISHABLE_KEY preview --value pk_test_... --yes
+vercel git connect https://github.com/benjefferies/esp32-garage-door-opener.git
+vercel --prod --yes
+```
+
+Add `https://garage-opener-rose.vercel.app` in Clerk as an allowed origin / redirect.
+
+Convex HTTP site (optional fallback): https://marvelous-herring-626.eu-west-1.convex.site
 
 ## Run locally
 
