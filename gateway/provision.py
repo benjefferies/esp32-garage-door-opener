@@ -145,9 +145,21 @@ SAVED_PAGE = """<!doctype html>
 <li class="active"><span class="mark"></span><span>Join home Wi-Fi</span></li>
 </ul>
 <p class="lede">Saved. Connecting to home Wi-Fi — this setup network will close.</p>
-<p class="meta">When the phone leaves garage-gw, open the Garage app.</p>
+<p class="meta"><a href="__APP__">Open the Garage app</a> when the phone leaves garage-gw.</p>
 </section>
 </main>
+<script>
+function go(){
+  location.replace("__APP__");
+}
+function wait(){
+  fetch("__ORIGIN__/manifest.webmanifest?online=1").then(function(r){
+    if(r.ok) go();
+    else setTimeout(wait, 1000);
+  }).catch(function(){ setTimeout(wait, 1000); });
+}
+setTimeout(wait, 2000);
+</script>
 """
 
 CAPTIVE_PATHS = {
@@ -184,7 +196,12 @@ def app_origin():
 
 
 def saved_page():
-    return SAVED_PAGE
+    origin = app_origin()
+    return (
+        SAVED_PAGE.replace("__APP__", html_escape(origin + "/#setup?saved=1")).replace(
+            "__ORIGIN__", html_escape(origin)
+        )
+    )
 
 
 def setup_app_url():

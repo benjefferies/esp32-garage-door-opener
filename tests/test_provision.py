@@ -62,7 +62,10 @@ class FormParseTests(unittest.TestCase):
         self.assertIn("setup network will close", html)
         self.assertIn("Join home Wi-Fi", html)
         self.assertIn("Processing", html)
+        self.assertIn("#setup?saved=1", html)
+        self.assertIn("Open the Garage app", html)
         self.assertNotIn("__APP__", html)
+        self.assertNotIn("__ORIGIN__", html)
 
     def test_portal_home_continues_after_sw1(self):
         # given the phone opened the captive sheet

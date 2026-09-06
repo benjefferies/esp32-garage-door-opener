@@ -4,12 +4,12 @@ import { Authenticated, AuthLoading, Unauthenticated, useMutation, useQuery } fr
 import { api } from "../convex/_generated/api";
 import { GATEWAY_AP_PASSWORD, GATEWAY_AP_SSID } from "./gatewayApi";
 import { NetworkPills, useNetworkProbe } from "./NetworkStatus";
+import { PairingChecklist } from "./PairingChecklist";
 import {
   clearPairing,
   pairingWifiSaved,
   readPairing,
   saveStartedPairing,
-  writePairing,
   type StoredPairing,
 } from "./pairingStorage";
 
@@ -111,17 +111,14 @@ function ClaimPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const remaining = useCountdown(expiresAt);
-  const wifiSaved = pairingWifiSaved();
+  const stored = readPairing();
+  const wifiSaved = stored?.wifiSaved === true || pairingWifiSaved();
   const { onGateway, online } = useNetworkProbe(nonce);
+  const backOnline = wifiSaved && online === true;
 
   useEffect(() => {
     if (nonce && expiresAt) {
-      const current = readPairing();
-      writePairing({
-        nonce,
-        expiresAt,
-        wifiSaved: current?.nonce === nonce ? current.wifiSaved : undefined,
-      });
+      saveStartedPairing({ nonce, expiresAt });
     }
   }, [nonce, expiresAt]);
 
@@ -129,10 +126,18 @@ function ClaimPanel({
     <>
       <NetworkPills onGateway={onGateway} online={online} />
       <section className="card">
+        <PairingChecklist
+          ready={Boolean(nonce || stored?.nonce)}
+          joinedAp={Boolean(stored?.joinedAp || onGateway || wifiSaved)}
+          pairPressed={Boolean(stored?.pairPressed || wifiSaved)}
+          wifiSaved={wifiSaved}
+          online={online}
+        />
         {wifiSaved && remaining > 0 ? (
           <p className="lede">
-            Home Wi-Fi is saved on the gateway. Pairing finishes when that board
-            comes back online — stay on this page.
+            {backOnline
+              ? "You are back online. Pairing finishes when the gateway confirms — stay on this page."
+              : "Home Wi-Fi is saved on the gateway. Pairing finishes when that board comes back online — stay on this page."}
           </p>
         ) : (
           <p className="lede">
@@ -155,7 +160,11 @@ function ClaimPanel({
         )}
         {error ? <p className="error">{error}</p> : null}
         {wifiSaved && remaining > 0 ? (
-          <p className="meta">Rejoin home Wi-Fi if you have not already.</p>
+          <p className="meta">
+            {backOnline
+              ? "Waiting for the gateway to confirm pairing."
+              : "Rejoin home Wi-Fi if you have not already."}
+          </p>
         ) : remaining > 0 ? (
           <button
             className="primary"
