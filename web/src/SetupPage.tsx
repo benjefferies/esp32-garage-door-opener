@@ -25,7 +25,6 @@ export function SetupPage({ pairing, onCancel }: Props) {
   );
   const [error, setError] = useState<string | null>(null);
   const [useFormPost, setUseFormPost] = useState(false);
-  const [joinedAp, setJoinedAp] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const remaining = useCountdown(pairing?.expiresAt ?? null);
 
@@ -40,13 +39,12 @@ export function SetupPage({ pairing, onCancel }: Props) {
     }
   }, []);
 
-  const leftInternet = online === false;
-  const onGarageGw = saved || onGateway || joinedAp || leftInternet;
+  const onGarageGw = saved || onGateway;
   const nonce = pairing?.nonce ?? "";
   const ready = Boolean(pairing?.nonce);
   const pressedPair = Boolean(status?.sw1) || saved;
   const backOnline = saved && online === true;
-  const showForm = onGarageGw && !saved && remaining > 0 && (pressedPair || !onGateway);
+  const showForm = onGateway && !saved && remaining > 0 && pressedPair;
 
   const steps = [
     { done: ready, label: "Ready to start pairing" },
@@ -163,16 +161,14 @@ export function SetupPage({ pairing, onCancel }: Props) {
           </form>
           </>
         ) : currentIndex === 1 ? (
-          <>
-            <p className="meta">
-              Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>,
-              password <strong>{GATEWAY_AP_PASSWORD}</strong>. If a Wi-Fi login
-              page opens, close it and come back to this Garage tab.
-            </p>
-            <button type="button" className="primary" onClick={() => setJoinedAp(true)}>
-              I&apos;m on {GATEWAY_AP_SSID}
-            </button>
-          </>
+          <p className="meta">
+            Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>,
+            password <strong>{GATEWAY_AP_PASSWORD}</strong>. This page pings{" "}
+            <a href={`${GATEWAY_ORIGIN}/api/status`}>{GATEWAY_ORIGIN}</a> and
+            marks this step when that answers. If a Wi-Fi login page opens,
+            close it and come back here. If the pill stays red, open{" "}
+            <a href={GATEWAY_ORIGIN}>{GATEWAY_ORIGIN}</a>.
+          </p>
         ) : currentIndex === 2 ? (
           <p className="meta">Press the pair button (SW1) on the gateway.</p>
         ) : currentIndex === 3 ? (
