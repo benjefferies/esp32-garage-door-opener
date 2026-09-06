@@ -22,11 +22,9 @@ After `sta.connect()`, the radio uses the **home AP channel**. Set opener `WIFI_
 
 ## Secrets
 
-Copy [`secrets.py.example`](secrets.py.example) to `secrets.py` on the device (already gitignored). Wi-Fi in that file is optional now; HiveMQ still lives there.
+Copy [`secrets.py.example`](secrets.py.example) to `secrets.py` on the device (already gitignored). It holds HiveMQ only. Wi-Fi lives in `wifi.json` from the setup page.
 
 ```python
-WIFI_SSID = ""
-WIFI_PASSWORD = ""
 MQTT_HOST = "6976bf6995e243d6be6c1f3634bb4f10.s1.eu.hivemq.cloud"
 MQTT_PORT = 8883
 MQTT_USER = "gateway"
@@ -34,7 +32,7 @@ MQTT_PASSWORD = "CHANGE_ME"
 MQTT_CLIENT_ID = "garage-gateway"
 ```
 
-Do not commit `wifi.json`.
+Do not commit `wifi.json` or `secrets.py`.
 
 ## MQTT topics
 

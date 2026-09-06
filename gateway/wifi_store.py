@@ -36,13 +36,4 @@ def clear_wifi(path=None) -> None:
 
 
 def load_credentials():
-    ssid, password = load_wifi()
-    if ssid:
-        return ssid, password
-    try:
-        from secrets import WIFI_SSID, WIFI_PASSWORD
-    except ImportError:
-        return None, None
-    if not WIFI_SSID or WIFI_SSID == "your-wifi-ssid":
-        return None, None
-    return WIFI_SSID, WIFI_PASSWORD
+    return load_wifi()
