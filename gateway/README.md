@@ -11,7 +11,7 @@ Sends ESP-NOW toggles to the opener from **SW1** or from **HiveMQ Cloud** (`gara
 
 If STA join fails (or nothing is saved), the gateway starts a local AP:
 
-1. Join **`garage-gw`** / password **`garage-setup`**
+1. Join **`garage-gw`** (open, no password)
 2. Open **http://192.168.4.1** (phones often pop a captive-portal sheet)
 3. Enter the home SSID and password
 4. The board writes `wifi.json` and tries STA again

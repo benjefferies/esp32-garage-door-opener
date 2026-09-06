@@ -126,15 +126,21 @@ def run_portal(reason="Set the home Wi-Fi"):
     sta.active(True)
     ap = network.WLAN(network.AP_IF)
     ap.active(True)
-    try:
-        ap.config(essid=AP_SSID, password=AP_PASSWORD, authmode=3)
-    except TypeError:
-        ap.config(essid=AP_SSID, password=AP_PASSWORD)
+    if AP_PASSWORD:
+        try:
+            ap.config(essid=AP_SSID, password=AP_PASSWORD, authmode=3)
+        except TypeError:
+            ap.config(essid=AP_SSID, password=AP_PASSWORD)
+    else:
+        try:
+            ap.config(essid=AP_SSID, authmode=0)
+        except TypeError:
+            ap.config(essid=AP_SSID)
     try:
         ap.ifconfig((AP_IP, "255.255.255.0", AP_IP, AP_IP))
     except OSError:
         pass
-    log("WiFi setup AP {} / {} — open http://{}".format(AP_SSID, AP_PASSWORD, AP_IP))
+    log("WiFi setup AP {} (open) — open http://{}".format(AP_SSID, AP_IP))
     log(reason)
 
     http = socket.socket()
