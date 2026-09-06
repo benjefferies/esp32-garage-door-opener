@@ -45,6 +45,8 @@ export function SetupPage({ pairing, onCancel }: Props) {
   const pressedPair = Boolean(status?.sw1) || saved;
   const backOnline = saved && online === true;
   const showForm = onGateway && !saved && remaining > 0 && pressedPair;
+  const gatewaySetupHref = nonce ? `${GATEWAY_ORIGIN}/?n=${encodeURIComponent(nonce)}` : GATEWAY_ORIGIN;
+  const showOpenGateway = !saved && remaining > 0 && !onGateway;
 
   const steps = [
     { done: ready, label: "Ready to start pairing" },
@@ -172,15 +174,18 @@ export function SetupPage({ pairing, onCancel }: Props) {
             </button>
           </form>
           </>
-        ) : currentIndex === 1 ? (
-          <p className="meta">
-            Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>,
-            password <strong>{GATEWAY_AP_PASSWORD}</strong>. This page pings{" "}
-            <a href={`${GATEWAY_ORIGIN}/api/status`}>{GATEWAY_ORIGIN}</a> and
-            marks this step when that answers. If a Wi-Fi login page opens,
-            close it and come back here. If the pill stays red, open{" "}
-            <a href={GATEWAY_ORIGIN}>{GATEWAY_ORIGIN}</a>.
-          </p>
+        ) : showOpenGateway || currentIndex === 1 ? (
+          <>
+            <p className="meta">
+              Open Wi-Fi settings, join <strong>{GATEWAY_AP_SSID}</strong>,
+              password <strong>{GATEWAY_AP_PASSWORD}</strong>. This HTTPS tab
+              cannot talk to the gateway. After you join, open the setup page
+              on the board.
+            </p>
+            <a className="primary" href={gatewaySetupHref}>
+              Open gateway setup
+            </a>
+          </>
         ) : currentIndex === 2 ? (
           <p className="meta">Press the pair button (SW1) on the gateway.</p>
         ) : currentIndex === 3 ? (

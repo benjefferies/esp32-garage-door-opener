@@ -16,17 +16,29 @@ def held_long_enough(held_ms, threshold_s=CLEAR_WIFI_HOLD_S) -> bool:
 
 
 class ButtonHandler:
-    def __init__(self, on_press, on_long_press=None):
-        self.button = Pin(BUTTON_PIN, Pin.IN, Pin.PULL_UP)
+    def __init__(self, on_press, on_long_press=None, pin=None):
+        self.button = pin if pin is not None else Pin(BUTTON_PIN, Pin.IN, Pin.PULL_UP)
         self.on_press = on_press
         self.on_long_press = on_long_press
         self.pressed_at = None
         self.long_fired = False
+        # GPIO9 is also BOOT. USB serial reset often leaves it low; do not
+        # treat that as a press or a 3s Wi-Fi wipe.
+        self.ignore_until_release = self.button.value() == 0
         log("Button initialized on GPIO {}".format(BUTTON_PIN))
+        if self.ignore_until_release:
+            log("SW1 down at start — release before toggle or Wi-Fi reset")
 
     def handle_button(self) -> None:
         pressed = self.button.value() == 0
         now = time.ticks_ms()
+
+        if self.ignore_until_release:
+            if not pressed:
+                self.ignore_until_release = False
+                self.pressed_at = None
+                self.long_fired = False
+            return
 
         if pressed:
             if self.pressed_at is None:

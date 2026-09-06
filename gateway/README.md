@@ -21,7 +21,7 @@ If STA join fails (or nothing is saved), the gateway starts a local AP. Pairing 
 
 The setup AP does **not** hijack DNS. DHCP points DNS at `8.8.8.8` so iOS/Android should not open a **192.168.4.1** Wi-Fi login sheet. Captive probes (and the iOS CNA user-agent on `/`) still return Success so a sheet that does appear can dismiss itself. Pairing stays in the Garage app, which talks to `http://192.168.4.1` by IP.
 
-Hold **SW1** for more than 3 seconds after boot to forget `wifi.json` and reboot into the setup AP. A button that is already down when `Initializing WiFi...` starts is ignored — GPIO9 is also BOOT, and USB serial reset often holds it low. Release, then hold 3s if you really want to clear Wi-Fi.
+Hold **SW1** for more than 3 seconds after it has been released to forget `wifi.json` and reboot into the setup AP. GPIO9 is also BOOT: USB serial reset often leaves it low. A button that is already down at boot or when the main loop starts is ignored — release, then hold 3s if you really want to clear Wi-Fi. The first release after that does not toggle.
 
 After `sta.connect()`, the radio uses the **home AP channel**. Set opener `WIFI_CHANNEL` to that number or the door radio will miss packets.
 
