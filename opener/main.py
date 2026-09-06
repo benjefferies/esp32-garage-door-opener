@@ -5,7 +5,7 @@ ESP32-NOW Garage Door Opener Receiver
 import time
 from machine import deepsleep, reset_cause, DEEPSLEEP_RESET
 
-from settings import LISTEN_TIME_MS, SLEEP_TIME_MS
+from settings import LISTEN_TIME_MS, SLEEP_TIME_MS, STATE_EVERY_N_WAKES
 from switch import SwitchController
 from espnow_manager import ESPNowManager
 from message_handler import MessageHandler
@@ -25,10 +25,9 @@ def main():
     message_handler = MessageHandler()
     reed = ReedSensor()
 
-    changed = reed.take_if_changed()
+    current, changed, wakes = reed.snapshot()
     if changed:
-        print("Reed {}".format(changed))
-        espnow_manager.send_state(changed)
+        print("Reed {}".format(current))
 
     t_start = time.ticks_ms()
     message_received = False
@@ -42,6 +41,13 @@ def main():
             )
             if message_received:
                 break
+
+    # Listen before TX so a toggle is not lost behind a state burst.
+    # ACK already carries reed state after a toggle.
+    if not message_received and (
+        changed or is_cold_boot or wakes % STATE_EVERY_N_WAKES == 0
+    ):
+        espnow_manager.send_state(current)
 
     print(
         "{} sleeping for {} ms...".format(

@@ -22,8 +22,8 @@ AP_DNS = "8.8.8.8"  # Do not point DHCP DNS at the AP or iOS opens a login sheet
 APP_URL = "https://garage-opener-rose.vercel.app"
 CLEAR_WIFI_HOLD_S = 3
 
-# Burst parameters
-BURST_COUNT = 20
+# Burst parameters. Opener listen duty is short, so cover >1 sleep cycle.
+BURST_COUNT = 40
 BURST_INTERVAL_MS = 50
 
 # Opener sleeps 250ms and pulses ~2s before ACK

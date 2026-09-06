@@ -15,9 +15,11 @@ GARAGE_DOOR_PULSE_MS = 2000
 # Reed header: magnet present shorts GPIO3 to GND
 REED_PIN = 3
 
-# Timing settings
-LISTEN_TIME_MS = 250
-SLEEP_TIME_MS = 250
+# Timing settings. Listen first and longer than sleep so a gateway burst
+# is likely to land while the radio is up.
+LISTEN_TIME_MS = 400
+SLEEP_TIME_MS = 100
+STATE_EVERY_N_WAKES = 40
 
 # Message handling settings
 MAX_RECENT_IDS = 5

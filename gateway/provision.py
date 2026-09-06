@@ -460,6 +460,13 @@ def run_portal(reason="Set the home Wi-Fi"):
                     ssid, password, body_nonce = wifi_fields(fields)
                     if body_nonce:
                         nonce = body_nonce
+                    log(
+                        "WiFi POST ssid={} sw1={} nonce={}".format(
+                            ssid or "-",
+                            sw1_ok,
+                            "yes" if nonce else "no",
+                        )
+                    )
                     if not ssid:
                         conn.send(_json_response({"ok": False, "error": "missing_ssid"}, "400 Bad Request"))
                         continue

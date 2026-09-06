@@ -77,9 +77,12 @@ export function SetupPage({ pairing, onCancel }: Props) {
       return;
     }
     if (result.unreachable) {
-      markWifiSaved();
-      setSaved(true);
+      // HTTPS pages cannot fetch http://192.168.4.1. Do not treat that as
+      // a successful write — the last attempt never created wifi.json.
       setUseFormPost(true);
+      setError(
+        "The app could not confirm a save. Stay on garage-gw and try again, or open http://192.168.4.1",
+      );
       setBusy(false);
       queueMicrotask(() => formRef.current?.submit());
       return;

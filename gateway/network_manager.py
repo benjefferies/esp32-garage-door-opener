@@ -15,7 +15,6 @@ from config import (
     ACK_TIMEOUT_MS,
     WIFI_CONNECT_TIMEOUT_S,
     BUTTON_PIN,
-    CLEAR_WIFI_HOLD_S,
 )
 from wifi_store import clear_wifi, load_credentials, peek_pair_nonce, save_wifi
 from provision import run_portal
@@ -35,16 +34,11 @@ def _clear_wifi_if_button_held() -> None:
     from machine import Pin
 
     button = Pin(BUTTON_PIN, Pin.IN, Pin.PULL_UP)
-    if button.value() != 0:
-        return
-    log("SW1 held — keep holding to forget Wi-Fi")
-    t0 = time.ticks_ms()
-    while button.value() == 0:
-        if time.ticks_diff(time.ticks_ms(), t0) >= CLEAR_WIFI_HOLD_S * 1000:
-            clear_wifi()
-            log("Forgot saved Wi-Fi")
-            return
-        time.sleep_ms(50)
+    # GPIO9 is also BOOT. USB serial open / DTR-RTS reset often leaves it
+    # low, which used to delete wifi.json on every debug plug-in.
+    # Forget Wi-Fi with a 3s hold after boot (button_handler), not here.
+    if button.value() == 0:
+        log("SW1 already down at boot — ignored (release, then hold 3s to forget Wi-Fi)")
 
 
 def _connect_sta(sta, ssid, password) -> bool:
@@ -65,6 +59,10 @@ def _connect_sta(sta, ssid, password) -> bool:
             log("WiFi connect timed out status={}".format(status))
             return False
         time.sleep_ms(250)
+    try:
+        sta.config(pm=getattr(network.WLAN, "PM_NONE", 0))
+    except (OSError, ValueError, AttributeError):
+        pass
     channel = sta.config("channel")
     ip = sta.ifconfig()[0]
     log("WiFi connected ip={} channel={}".format(ip, channel))
@@ -150,9 +148,16 @@ def send_toggle_with_ack(espnow_instance, msg_id, mqtt_client=None) -> bool:
     payload = b"toggle:" + str(msg_id).encode()
 
     log("Sending toggle (ID={}) as burst of {} packets".format(msg_id, BURST_COUNT))
+    sent = 0
     for _ in range(BURST_COUNT):
-        espnow_instance.send(BROADCAST_ADDRESS, payload)
+        try:
+            if espnow_instance.send(BROADCAST_ADDRESS, payload):
+                sent += 1
+        except OSError as err:
+            log("ESP-NOW send failed: {}".format(err))
+            break
         time.sleep_ms(BURST_INTERVAL_MS)
+    log("ESP-NOW sent {}/{}".format(sent, BURST_COUNT))
 
     t_ack_start = time.ticks_ms()
     while time.ticks_diff(time.ticks_ms(), t_ack_start) < ACK_TIMEOUT_MS:
