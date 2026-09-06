@@ -4,7 +4,7 @@ ESP-NOW networking management for the garage door opener
 
 import network
 import espnow
-from settings import WIFI_CHANNEL, BROADCAST_ADDRESS
+from settings import WIFI_CHANNEL, BROADCAST_ADDRESS, WIFI_TXPOWER_DBM
 
 
 class ESPNowManager:
@@ -23,6 +23,10 @@ class ESPNowManager:
         try:
             sta.config(pm=getattr(network.WLAN, "PM_NONE", 0))
         except (OSError, ValueError, AttributeError):
+            pass
+        try:
+            sta.config(txpower=WIFI_TXPOWER_DBM)
+        except (OSError, ValueError, TypeError, AttributeError):
             pass
         sta.config(channel=WIFI_CHANNEL)
         if is_cold_boot:

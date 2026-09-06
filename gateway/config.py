@@ -5,6 +5,9 @@ Configuration constants for the ESP32-NOW Gateway
 # Network configuration
 WIFI_CHANNEL = 6  # Used only if STA connect fails
 BROADCAST_ADDRESS = b"\xff\xff\xff\xff\xff\xff"
+# XC6206 is ~250 mA. Default ~20 dBm TX is 280–350 mA. 8 dBm is enough
+# for a phone next to SoftAP; raise if home Wi-Fi is far.
+WIFI_TXPOWER_DBM = 8
 
 # Hardware configuration
 BUTTON_PIN = 9

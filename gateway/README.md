@@ -25,6 +25,8 @@ Hold **SW1** for more than 3 seconds after boot to forget `wifi.json` and reboot
 
 After `sta.connect()`, the radio uses the **home AP channel**. Set opener `WIFI_CHANNEL` to that number or the door radio will miss packets.
 
+`WIFI_TXPOWER_DBM` is **8** so SoftAP/STA TX stays under the XC6206 (~250 mA). Default ~20 dBm is 280–350 mA and brownouts `VCC_3V3`. Raise it if the phone cannot see `garage-gw` or home Wi-Fi is far.
+
 ## Secrets
 
 Copy [`secrets.py.example`](secrets.py.example) to `secrets.py` on the device (already gitignored). It holds HiveMQ only. Wi-Fi lives in `wifi.json` from the setup page.
