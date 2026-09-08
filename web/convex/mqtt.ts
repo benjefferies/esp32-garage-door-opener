@@ -6,42 +6,39 @@ import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 
 const TOPIC_CMD = "garage/opener/cmd";
-const TOPIC_PAIR_ACK = "garage/opener/pair/ack";
-const TOPIC_STATE = "garage/opener/state";
-const TOPIC_STATUS = "garage/opener/gateway";
-const PAIR_WAIT_MS = 60_000;
-const LISTEN_SLICE_MS = 50_000;
-const LISTEN_RETRY_MS = 5_000;
-const WATCH_MS = 55_000;
+
+function mqttSettings() {
+  const host = process.env.MQTT_HOST;
+  const username = process.env.MQTT_USER;
+  const password = process.env.MQTT_PASSWORD;
+  const port = Number(process.env.MQTT_PORT ?? "8883");
+  if (!host || !username || !password) {
+    throw new Error("MQTT env vars are not set");
+  }
+  return { url: `mqtts://${host}:${port}`, username, password };
+}
+
+async function publishCommand(payload: string) {
+  const settings = mqttSettings();
+  const client = await mqtt.connectAsync(settings.url, {
+    username: settings.username,
+    password: settings.password,
+    clientId: `convex-pub-${Date.now().toString(36)}`,
+    rejectUnauthorized: true,
+    connectTimeout: 8000,
+  });
+  try {
+    await client.publishAsync(TOPIC_CMD, payload);
+  } finally {
+    await client.endAsync();
+  }
+}
 
 export const publishToggle = internalAction({
   args: { commandId: v.id("commands") },
   handler: async (ctx, args) => {
-    const host = process.env.MQTT_HOST;
-    const username = process.env.MQTT_USER;
-    const password = process.env.MQTT_PASSWORD;
-    const port = Number(process.env.MQTT_PORT ?? "8883");
-
-    if (!host || !username || !password) {
-      await ctx.runMutation(internal.door.markCommand, {
-        commandId: args.commandId,
-        status: "failed",
-        error: "MQTT env vars are not set",
-      });
-      return;
-    }
-
-    const url = `mqtts://${host}:${port}`;
     try {
-      const client = await mqtt.connectAsync(url, {
-        username,
-        password,
-        clientId: `convex-publisher-${Date.now()}`,
-        rejectUnauthorized: true,
-        connectTimeout: 8000,
-      });
-      await client.publishAsync(TOPIC_CMD, "toggle");
-      await client.endAsync();
+      await publishCommand("toggle");
       await ctx.runMutation(internal.door.markCommand, {
         commandId: args.commandId,
         status: "sent",
@@ -57,161 +54,13 @@ export const publishToggle = internalAction({
   },
 });
 
-function mqttSettings() {
-  const host = process.env.MQTT_HOST;
-  const username = process.env.MQTT_USER;
-  const password = process.env.MQTT_PASSWORD;
-  const port = Number(process.env.MQTT_PORT ?? "8883");
-  if (!host || !username || !password) {
-    throw new Error("MQTT env vars are not set");
-  }
-  return { url: `mqtts://${host}:${port}`, username, password };
-}
-
-async function listenForPairAck(nonce: string, waitMs: number, publishPair: boolean) {
-  const settings = mqttSettings();
-  const mqttClient = await mqtt.connectAsync(settings.url, {
-    username: settings.username,
-    password: settings.password,
-    clientId: `convex-pair-${nonce.slice(0, 12)}-${Date.now().toString(36)}`,
-    rejectUnauthorized: true,
-    connectTimeout: 8000,
-  });
-  try {
-    await mqttClient.subscribeAsync(TOPIC_PAIR_ACK);
-    return await new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => resolve(false), waitMs);
-      const onMessage = (_topic: string, payload: Buffer) => {
-        const text = payload.toString().trim();
-        if (text === nonce || text === `pair:${nonce}`) {
-          clearTimeout(timer);
-          mqttClient.off("message", onMessage);
-          resolve(true);
-        }
-      };
-      mqttClient.on("message", onMessage);
-      if (!publishPair) {
-        return;
-      }
-      void mqttClient.publishAsync(TOPIC_CMD, `pair:${nonce}`).catch(() => {
-        clearTimeout(timer);
-        resolve(false);
-      });
-    });
-  } finally {
-    await mqttClient.endAsync();
-  }
-}
-
 export const runPairing = internalAction({
-  args: { pairingId: v.id("pairings"), nonce: v.string() },
-  handler: async (ctx, args) => {
-    let confirmed = false;
+  args: { nonce: v.string() },
+  handler: async (_ctx, args) => {
     try {
-      const matched = await listenForPairAck(args.nonce, PAIR_WAIT_MS, true);
-      if (matched) {
-        await ctx.runMutation(internal.door.confirmPairing, { nonce: args.nonce });
-        confirmed = true;
-      }
+      await publishCommand(`pair:${args.nonce}`);
     } catch {
-      // SoftAP pairing still uses this nonce after the phone leaves the internet.
-    }
-    if (!confirmed) {
-      await ctx.scheduler.runAfter(0, internal.mqtt.waitForPairAck, {
-        pairingId: args.pairingId,
-        nonce: args.nonce,
-      });
-    }
-  },
-});
-
-export const waitForPairAck = internalAction({
-  args: { pairingId: v.id("pairings"), nonce: v.string() },
-  handler: async (ctx, args) => {
-    const pending = await ctx.runQuery(internal.door.getPendingPairing, {
-      pairingId: args.pairingId,
-    });
-    if (!pending) {
-      return;
-    }
-    const remaining = pending.expiresAt - Date.now();
-    if (remaining <= 0) {
-      return;
-    }
-    try {
-      const matched = await listenForPairAck(
-        args.nonce,
-        Math.min(LISTEN_SLICE_MS, remaining),
-        false,
-      );
-      if (matched) {
-        await ctx.runMutation(internal.door.confirmPairing, { nonce: args.nonce });
-        return;
-      }
-    } catch {
-      await ctx.scheduler.runAfter(LISTEN_RETRY_MS, internal.mqtt.waitForPairAck, {
-        pairingId: args.pairingId,
-        nonce: args.nonce,
-      });
-      return;
-    }
-    const stillPending = await ctx.runQuery(internal.door.getPendingPairing, {
-      pairingId: args.pairingId,
-    });
-    if (stillPending) {
-      await ctx.scheduler.runAfter(0, internal.mqtt.waitForPairAck, {
-        pairingId: args.pairingId,
-        nonce: args.nonce,
-      });
-    }
-  },
-});
-
-function parseDoorState(text: string) {
-  const value = text.trim().toLowerCase();
-  if (value === "open" || value === "closed" || value === "unknown") {
-    return value;
-  }
-  return null;
-}
-
-export const watchGateway = internalAction({
-  args: {},
-  handler: async (ctx) => {
-    let settings: ReturnType<typeof mqttSettings>;
-    try {
-      settings = mqttSettings();
-    } catch {
-      return;
-    }
-    const mqttClient = await mqtt.connectAsync(settings.url, {
-      username: settings.username,
-      password: settings.password,
-      clientId: `convex-watch-${Date.now().toString(36)}`,
-      rejectUnauthorized: true,
-      connectTimeout: 8000,
-    });
-    try {
-      await mqttClient.subscribeAsync([TOPIC_STATUS, TOPIC_STATE]);
-      await new Promise<void>((resolve) => {
-        setTimeout(() => resolve(), WATCH_MS);
-        mqttClient.on("message", (topic, payload) => {
-          const text = payload.toString().trim();
-          if (topic === TOPIC_STATE) {
-            const state = parseDoorState(text);
-            if (state) {
-              void ctx.runMutation(internal.door.recordState, { state, gatewayOnline: true });
-            }
-            return;
-          }
-          if (topic === TOPIC_STATUS) {
-            const online = text.toLowerCase() !== "offline";
-            void ctx.runMutation(internal.door.recordHeartbeat, { online });
-          }
-        });
-      });
-    } finally {
-      await mqttClient.endAsync();
+      // SoftAP pairing still confirms this nonce with POST /api/pair.
     }
   },
 });

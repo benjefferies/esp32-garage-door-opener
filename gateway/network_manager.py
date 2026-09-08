@@ -19,6 +19,7 @@ from config import (
 )
 from wifi_store import clear_wifi, load_credentials, peek_pair_nonce, save_wifi
 from provision import run_portal
+from pair_webhook import post_door_state
 
 
 def reset_wifi() -> None:
@@ -130,6 +131,7 @@ def handle_espnow_message(msg, mqtt_client, expected_ack_id=None):
         log("Reed state {}".format(state))
         if mqtt_client:
             mqtt_client.publish_state(state)
+        post_door_state(state)
         return False
 
     ack_id, ack_state = parse_ack(msg)
@@ -141,6 +143,7 @@ def handle_espnow_message(msg, mqtt_client, expected_ack_id=None):
         log("Reed state {}".format(ack_state))
         if mqtt_client:
             mqtt_client.publish_state(ack_state)
+        post_door_state(ack_state)
     if mqtt_client:
         mqtt_client.publish_ack(ack_id)
     return expected_ack_id is not None and ack_id == expected_ack_id
