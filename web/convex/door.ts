@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 
 const DOOR_SLUG = "opener";
 const PAIR_WINDOW_MS = 15 * 60_000;
@@ -104,7 +104,6 @@ export const requestPairing = mutation({
       pairingId,
     });
     await ctx.scheduler.runAfter(0, internal.mqtt.runPairing, {
-      pairingId,
       nonce,
     });
     return { nonce, expiresAt: now + PAIR_WINDOW_MS };
@@ -182,17 +181,6 @@ export const confirmPairing = internalMutation({
       });
     }
     return true;
-  },
-});
-
-export const getPendingPairing = internalQuery({
-  args: { pairingId: v.id("pairings") },
-  handler: async (ctx, args) => {
-    const pairing = await ctx.db.get(args.pairingId);
-    if (!pairing || pairing.status !== "pending" || pairing.expiresAt <= Date.now()) {
-      return null;
-    }
-    return { nonce: pairing.nonce, expiresAt: pairing.expiresAt };
   },
 });
 

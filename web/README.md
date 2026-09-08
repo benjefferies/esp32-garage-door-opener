@@ -70,8 +70,8 @@ Set these on the Convex deployment (**Environment Variables**), not Wi‑Fi:
 | `MQTT_USER` | HiveMQ user that **may publish** (not subscribe-only) |
 | `MQTT_PASSWORD` | that user's password |
 | `SITE_URL` | `http://localhost:5173` while developing |
-| `DOOR_WEBHOOK_SECRET` | optional; for later `POST /door-state` from the gateway |
+| `DOOR_WEBHOOK_SECRET` | shared secret for gateway `POST /api/door-state` and `POST /api/pair` |
 
 Sign-up is **restricted** in Clerk. After you sign in, **Start pairing** stores a nonce in the browser and caches this app with a service worker. Join the gateway AP **`garage-gw`** (password **`garage-gw`**). The phone should open a captive sheet that looks like this app — press **SW1** and save home Wi-Fi there. SoftAP then turns off so the phone leaves `garage-gw`. The sheet opens `#setup?saved=1` so the app checklist remembers **Back online**. If the sheet does not appear, tap **Open gateway setup** — that navigates to `http://192.168.4.1` because the HTTPS app cannot `fetch` it. After you rejoin home Wi-Fi the app waits for the gateway to come online and confirm that nonce. That confirm is what adds your Clerk user as an owner; `toggleDoor` rejects everyone else. **Unpair this garage** deletes that owner row and any pending pairing for the signed-in user. The gateway keeps its Wi-Fi; release SW1, then hold 3s on the board to forget `wifi.json`.
 
-Door open/closed stays `unknown` until the gateway reports reed state. The owner view shows the last gateway heartbeat (`garage/opener/gateway`) and the last reed reading (`garage/opener/state`). The button still sends MQTT.
+Door open/closed stays `unknown` until the gateway reports reed state. The gateway POSTs that to Convex (`/api/door-state`) when it publishes to HiveMQ — Convex does not subscribe to MQTT. The owner view shows the last gateway heartbeat and reed reading. Toggle still publishes MQTT `garage/opener/cmd`.

@@ -40,6 +40,8 @@ MQTT_TOPIC_ACK = "garage/opener/ack"
 MQTT_TOPIC_STATUS = "garage/opener/gateway"
 MQTT_TOPIC_PAIR_ACK = "garage/opener/pair/ack"
 MQTT_HEARTBEAT_S = 20
+# HTTPS to Convex is heavier than MQTT; stay inside the web 90s offline window.
+CONVEX_HEARTBEAT_S = 60
 PAIR_WINDOW_S = 60
 PAIR_CONFIRM_RETRY_S = 10
 PAIR_CONFIRM_GIVE_UP_S = 15 * 60

@@ -4,13 +4,17 @@ import { internal } from "./_generated/api";
 
 const http = httpRouter();
 
+function isAuthorized(request: Request): boolean {
+  const expected = process.env.DOOR_WEBHOOK_SECRET;
+  const header = request.headers.get("Authorization") ?? "";
+  return Boolean(expected) && header === `Bearer ${expected}`;
+}
+
 http.route({
   path: "/door-state",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const expected = process.env.DOOR_WEBHOOK_SECRET;
-    const header = request.headers.get("Authorization") ?? "";
-    if (!expected || header !== `Bearer ${expected}`) {
+    if (!isAuthorized(request)) {
       return new Response("Unauthorized", { status: 401 });
     }
 
@@ -21,14 +25,27 @@ http.route({
       return new Response("Invalid JSON", { status: 400 });
     }
 
-    if (body.state !== "open" && body.state !== "closed" && body.state !== "unknown") {
+    const state = body.state;
+    const online = body.gatewayOnline;
+    if (state !== undefined && state !== "open" && state !== "closed" && state !== "unknown") {
       return new Response("Invalid state", { status: 400 });
     }
+    if (online !== undefined && typeof online !== "boolean") {
+      return new Response("Invalid gatewayOnline", { status: 400 });
+    }
 
-    await ctx.runMutation(internal.door.recordState, {
-      state: body.state,
-      gatewayOnline: body.gatewayOnline,
-    });
+    if (state === "open" || state === "closed" || state === "unknown") {
+      await ctx.runMutation(internal.door.recordState, {
+        state,
+        gatewayOnline: online,
+      });
+    } else if (typeof online === "boolean") {
+      await ctx.runMutation(internal.door.recordHeartbeat, {
+        online,
+      });
+    } else {
+      return new Response("Expected state or gatewayOnline", { status: 400 });
+    }
     return new Response("ok");
   }),
 });
@@ -37,9 +54,7 @@ http.route({
   path: "/pair",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const expected = process.env.DOOR_WEBHOOK_SECRET;
-    const header = request.headers.get("Authorization") ?? "";
-    if (!expected || header !== `Bearer ${expected}`) {
+    if (!isAuthorized(request)) {
       return new Response("Unauthorized", { status: 401 });
     }
 

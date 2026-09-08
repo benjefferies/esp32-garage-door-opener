@@ -49,7 +49,7 @@ Do not commit `wifi.json` or `secrets.py`.
 | `garage/opener/ack` | gateway → HiveMQ | `ack:<id>` |
 | `garage/opener/gateway` | gateway → HiveMQ (retained) | `hb` every 20s; last will `offline` |
 
-The HiveMQ `gateway` user must be allowed to **publish** `garage/opener/pair/ack`. If it is subscribe-only, set `CONVEX_SITE_URL` and `DOOR_WEBHOOK_SECRET` so SW1 can POST `/api/pair` instead.
+HiveMQ Cloud Serverless cannot HTTP-trigger Convex. Set `CONVEX_SITE_URL` and `DOOR_WEBHOOK_SECRET` so the gateway POSTs `/api/door-state` (reed + 60s heartbeat) and `/api/pair` (SW1 / SoftAP confirm). Convex only **publishes** `garage/opener/cmd`; it no longer listens on MQTT.
 
 Test from the HiveMQ console: publish `toggle` to `garage/opener/cmd`.
 
